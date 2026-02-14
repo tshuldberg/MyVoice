@@ -20,103 +20,178 @@ body {
   padding-top: 0;
 }
 
-.pill {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+/* ─── Overlay Container ─────────────────────── */
+
+.overlay {
+  background: rgba(30, 30, 30, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  min-width: 280px;
-  max-width: 400px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
 
   /* Entry animation */
   opacity: 0;
   transform: scale(0.95);
-  animation: pill-enter 150ms ease-out forwards;
+  animation: overlay-enter 150ms ease-out forwards;
 }
 
-.pill.dismissing {
-  animation: pill-exit 200ms ease-in forwards;
+.overlay.dismissing {
+  animation: overlay-exit 200ms ease-in forwards;
 }
 
-@keyframes pill-enter {
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.overlay.expanded {
+  width: 620px;
+  height: 160px;
+  border-radius: 16px;
 }
 
-@keyframes pill-exit {
-  to {
-    opacity: 0;
-    transform: scale(0.95);
-  }
+.overlay.minimized {
+  width: 260px;
+  height: 56px;
+  border-radius: 28px;
 }
 
-/* ─── Waveform ───────────────────────────────── */
+/* State transitions (not initial load) */
+.overlay.transitioning {
+  transition: width 200ms ease-in-out, height 200ms ease-in-out, border-radius 200ms ease-in-out;
+}
 
-.waveform {
+/* ─── View Switching ────────────────────────── */
+
+.overlay.expanded .expanded-view { display: flex; }
+.overlay.expanded .mini-view { display: none; }
+
+.overlay.minimized .expanded-view { display: none; }
+.overlay.minimized .mini-view { display: flex; }
+
+/* ─── Expanded View ─────────────────────────── */
+
+.expanded-view {
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 16px 20px 12px;
+}
+
+.waveform-area {
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
+  justify-content: center;
+}
+
+.waveform-area canvas {
+  width: 100%;
+  height: 60px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.bar {
-  width: 3px;
-  height: 4px;
-  border-radius: 1.5px;
-  background: linear-gradient(180deg, #7B61FF 0%, #4A9EFF 100%);
-  transition: height 80ms ease-out;
-  min-height: 4px;
-  max-height: 28px;
-}
-
-/* Idle breathing animation */
-.pill.idle .bar {
-  animation: breathe 2s ease-in-out infinite;
-}
-
-.pill.idle .bar:nth-child(odd) {
-  animation-delay: 0.3s;
-}
-
-@keyframes breathe {
-  0%, 100% { height: 4px; }
-  50% { height: 8px; }
-}
-
-/* ─── Text Area ──────────────────────────────── */
-
-.text-area {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.toolbar-center {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar-right {
+  flex-shrink: 0;
+}
+
+.mic-icon {
+  flex-shrink: 0;
 }
 
 .status {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .transcript {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.85);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 16px;
+  display: block;
 }
 
 .transcript:empty {
   display: none;
+}
+
+/* ─── Minimized View ────────────────────────── */
+
+.mini-view {
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 16px;
+  gap: 10px;
+}
+
+.mini-mic-icon {
+  flex-shrink: 0;
+}
+
+.mini-view canvas {
+  flex: 1;
+  height: 30px;
+}
+
+/* ─── Icon Button ───────────────────────────── */
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  padding: 0;
+  -webkit-app-region: no-drag;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.icon-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Animations ────────────────────────────── */
+
+@keyframes overlay-enter {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes overlay-exit {
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }

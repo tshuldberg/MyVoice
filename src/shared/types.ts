@@ -6,10 +6,15 @@ export const IPC_CHANNELS = {
   DICTATION_AUDIO_LEVEL: 'dictation:audio-level',
   DICTATION_PARTIAL_TEXT: 'dictation:partial-text',
   DICTATION_ERROR: 'dictation:error',
+  OVERLAY_DISMISSED: 'overlay:dismissed',
+  OVERLAY_SET_SIZE: 'overlay:set-size',
 } as const;
 
 // Dictation state machine
 export type DictationState = 'idle' | 'recording' | 'stopping';
+
+// Overlay state
+export type OverlayMode = 'expanded' | 'minimized';
 
 // IPC payloads
 export interface AudioLevelPayload {
@@ -26,4 +31,10 @@ export interface DictationStopPayload {
 
 export interface DictationErrorPayload {
   message: string;
+}
+
+export interface OverlaySetSizePayload {
+  width: number;
+  height: number;
+  position: 'center' | 'top-left';
 }

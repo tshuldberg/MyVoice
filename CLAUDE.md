@@ -156,6 +156,35 @@ Squash merge to `main`.
 - **fn key behavior:** Double-tap fn avoids conflict with single-tap fn (emoji picker). The 400ms threshold prevents false positives from normal typing.
 - **CGEvent limitations:** Some heavily sandboxed apps may not accept CGEvent keystrokes. This is a macOS limitation, not a bug.
 
+## Parallel Agent Work
+
+This project participates in the workspace plan queue system. See `/Users/trey/Desktop/Apps/CLAUDE.md` for the full Plan Queue Protocol.
+
+### Worktree Setup
+- Bootstrap: `.cmux/setup` handles env symlinks and dependency installation
+- Branch naming: `plan/[plan-name]` for plan-driven work, `feature/[name]` for ad-hoc
+
+### File Ownership Boundaries
+When multiple agents work on this project simultaneously, use these boundaries to avoid conflicts:
+- **Main process agent:** `src/main/` (Electron main process — `index.ts`, `dictation-controller.ts`, `overlay-window.ts`, `tray.ts`, `native-bridge.ts`)
+- **Renderer agent:** `src/renderer/` (overlay UI — `index.html`, `overlay.css`, `overlay.ts`)
+- **Native addon agent:** `src/native/` (Objective-C/C++ — `addon.mm`, `SpeechBridgeImpl.m`, `HotkeyBridgeImpl.m`, `KeyboardBridgeImpl.m`, `binding.gyp`, headers)
+- **Shared agent:** `src/shared/` (IPC types, constants shared between main and renderer)
+- **Tests agent:** `tests/` (all test files)
+- **Assets/packaging agent:** `assets/`, electron-builder config, `package.json`
+
+### Conflict Prevention
+- Check which files other active plans target before starting (read `docs/plans/active/*.md`)
+- If your scope overlaps with an active plan, coordinate or wait
+- After completing work, run `npm run build && npm test` before marking the plan done
+
+### Agent Teams Strategy
+When `/dispatch` detects 2+ plans targeting this project with overlapping scope, it creates an Agent Team instead of parallel subagents. Custom agent definitions from `/Users/trey/Desktop/Apps/.claude/agents/` are available:
+- `plan-executor` — Execute plan phases with testing and verification
+- `test-writer` — Write tests without modifying source code
+- `docs-agent` — Update documentation (CLAUDE.md, timeline, diagrams)
+- `reviewer` — Read-only code review and quality gates (uses Sonnet)
+
 ## Development Timeline
 
 **File:** timeline.md

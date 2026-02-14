@@ -1,0 +1,122 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 0;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  min-width: 280px;
+  max-width: 400px;
+
+  /* Entry animation */
+  opacity: 0;
+  transform: scale(0.95);
+  animation: pill-enter 150ms ease-out forwards;
+}
+
+.pill.dismissing {
+  animation: pill-exit 200ms ease-in forwards;
+}
+
+@keyframes pill-enter {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pill-exit {
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* ─── Waveform ───────────────────────────────── */
+
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.bar {
+  width: 3px;
+  height: 4px;
+  border-radius: 1.5px;
+  background: linear-gradient(180deg, #7B61FF 0%, #4A9EFF 100%);
+  transition: height 80ms ease-out;
+  min-height: 4px;
+  max-height: 28px;
+}
+
+/* Idle breathing animation */
+.pill.idle .bar {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.pill.idle .bar:nth-child(odd) {
+  animation-delay: 0.3s;
+}
+
+@keyframes breathe {
+  0%, 100% { height: 4px; }
+  50% { height: 8px; }
+}
+
+/* ─── Text Area ──────────────────────────────── */
+
+.text-area {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.status {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.02em;
+}
+
+.transcript {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 16px;
+}
+
+.transcript:empty {
+  display: none;
+}

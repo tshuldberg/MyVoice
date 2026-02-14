@@ -1,0 +1,22 @@
+{
+  "appId": "com.trey.myvoice",
+  "productName": "MyVoice",
+  "mac": {
+    "category": "public.app-category.productivity",
+    "target": ["dmg"],
+    "icon": "assets/icon.icns",
+    "hardenedRuntime": true,
+    "entitlements": "entitlements.plist",
+    "entitlementsInherit": "entitlements.plist",
+    "extendInfo": {
+      "NSMicrophoneUsageDescription": "MyVoice needs microphone access to transcribe your speech.",
+      "NSSpeechRecognitionUsageDescription": "MyVoice uses on-device speech recognition to convert your voice to text."
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "src/renderer/**/*",
+    "src/native/build/**/*.node",
+    "assets/**/*"
+  ]
+}

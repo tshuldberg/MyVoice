@@ -4,25 +4,43 @@ import path from 'path';
 let tray: Tray | null = null;
 let isRecording = false;
 
-export function createTray(): Tray {
-  // Create a simple template image for the tray
-  // On macOS, template images adapt to light/dark mode automatically
-  const iconPath = path.join(__dirname, '../../assets/tray-icon.png');
+function createMicIcon(active: boolean): Electron.NativeImage {
+  // Try file-based icons first
+  const fileName = active ? 'tray-icon-active.png' : 'tray-icon.png';
+  const iconPath = path.join(__dirname, '../../assets', fileName);
 
-  // Fallback: create a simple icon if file doesn't exist
-  let icon: Electron.NativeImage;
   try {
-    icon = nativeImage.createFromPath(iconPath);
-    icon = icon.resize({ width: 16, height: 16 });
+    const icon = nativeImage.createFromPath(iconPath);
+    if (!icon.isEmpty()) {
+      return icon.resize({ width: 16, height: 16 });
+    }
   } catch {
-    // Create a minimal microphone-like icon as fallback
-    icon = nativeImage.createEmpty();
+    // Fall through to generated icon
   }
 
+  // Generate a simple microphone icon via data URL
+  // 32x32 canvas: mic body (rounded rect) + stand (line + arc)
+  const color = active ? 'FF3B30' : '8E8E93'; // Red when recording, gray when idle
+  const buf = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+      <rect x="11" y="4" width="10" height="16" rx="5" fill="#${color}"/>
+      <path d="M8 16 a8 8 0 0 0 16 0" stroke="#${color}" stroke-width="2" fill="none"/>
+      <line x1="16" y1="24" x2="16" y2="28" stroke="#${color}" stroke-width="2"/>
+      <line x1="12" y1="28" x2="20" y2="28" stroke="#${color}" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+    'utf8'
+  );
+  const dataUrl = `data:image/svg+xml;base64,${buf.toString('base64')}`;
+  const icon = nativeImage.createFromDataURL(dataUrl);
+  if (!active) icon.setTemplateImage(true);
+  return icon.resize({ width: 16, height: 16 });
+}
+
+export function createTray(): Tray {
+  const icon = createMicIcon(false);
   tray = new Tray(icon);
   tray.setToolTip('MyVoice — Double-tap fn to dictate');
   updateTrayMenu();
-
   return tray;
 }
 
@@ -31,6 +49,7 @@ export function setRecordingState(recording: boolean): void {
   updateTrayMenu();
 
   if (tray) {
+    tray.setImage(createMicIcon(recording));
     tray.setToolTip(recording ? 'MyVoice — Recording...' : 'MyVoice — Double-tap fn to dictate');
   }
 }

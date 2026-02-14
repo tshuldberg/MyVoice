@@ -17,7 +17,7 @@ export const OVERLAY_TOP_OFFSET = 200;
 export const OVERLAY_BORDER_RADIUS = 24;
 
 // Text injection
-export const KEYSTROKE_DELAY_MS = 10;
+export const KEYSTROKE_DELAY_MS = 20;
 
 // Animations
 export const OVERLAY_FADE_IN_MS = 150;

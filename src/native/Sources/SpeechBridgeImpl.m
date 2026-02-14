@@ -97,6 +97,13 @@ static AVAudioEngine *audioEngine;
         levelCallback(normalized);
     }];
 
+    // Observe audio engine configuration changes (mic disconnect/reconnect)
+    [[NSNotificationCenter defaultCenter] addObserverForName:AVAudioEngineConfigurationChangeNotification
+        object:audioEngine queue:nil usingBlock:^(NSNotification * _Nonnull note) {
+        errorCallback(@"Audio input changed. Microphone may have been disconnected.");
+        [self stopRecognition];
+    }];
+
     // Start audio engine
     NSError *engineError;
     [audioEngine prepare];
@@ -107,9 +114,13 @@ static AVAudioEngine *audioEngine;
 }
 
 + (void)stopRecognition {
-    if (audioEngine && audioEngine.isRunning) {
-        [audioEngine stop];
-        [audioEngine.inputNode removeTapOnBus:0];
+    if (audioEngine) {
+        [[NSNotificationCenter defaultCenter] removeObserver:audioEngine
+            name:AVAudioEngineConfigurationChangeNotification object:audioEngine];
+        if (audioEngine.isRunning) {
+            [audioEngine stop];
+            [audioEngine.inputNode removeTapOnBus:0];
+        }
     }
 
     if (recognitionRequest) {

@@ -8,7 +8,23 @@ import * as native from './native-bridge';
 let state: DictationState = 'idle';
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAudioAboveThreshold = 0;
+let isFinishing = false;
+let permissionsChecked = false;
 const SILENCE_AUDIO_THRESHOLD = 0.02;
+
+const ERROR_MESSAGES: Record<string, string> = {
+  'Speech recognizer not available for this locale':
+    'On-device speech model not found. Download it in System Settings → Keyboard → Dictation.',
+  'Audio engine failed':
+    'Microphone access failed. Check System Settings → Privacy & Security → Microphone.',
+};
+
+function friendlyError(rawError: string): string {
+  for (const [key, msg] of Object.entries(ERROR_MESSAGES)) {
+    if (rawError.includes(key)) return msg;
+  }
+  return rawError;
+}
 
 export function getDictationState(): DictationState {
   return state;
@@ -23,14 +39,39 @@ export function toggleDictation(): void {
   // Ignore if 'stopping' (debounce)
 }
 
-function startDictation(): void {
-  // Check permissions first
+export function cancelDictation(): void {
+  if (state !== 'recording' && state !== 'stopping') return;
+
+  clearSilenceTimer();
+  native.speechStop();
+  sendToOverlay(IPC_CHANNELS.DICTATION_CANCEL);
+  resetState();
+}
+
+async function checkPermissions(): Promise<boolean> {
+  if (permissionsChecked) return true;
+
   if (!native.keyboardCheckPermission()) {
     native.keyboardRequestPermission();
-    return;
+    return false;
   }
 
+  const speechAuthorized = await native.speechRequestAuth();
+  if (!speechAuthorized) {
+    console.error('Speech recognition permission denied');
+    return false;
+  }
+
+  permissionsChecked = true;
+  return true;
+}
+
+async function startDictation(): Promise<void> {
+  const permitted = await checkPermissions();
+  if (!permitted) return;
+
   state = 'recording';
+  isFinishing = false;
   setRecordingState(true);
   showOverlay();
   lastAudioAboveThreshold = Date.now();
@@ -59,7 +100,7 @@ function startDictation(): void {
     // onError
     (error: string) => {
       console.error('Speech recognition error:', error);
-      sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, error);
+      sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, friendlyError(error));
       resetState();
     }
   );
@@ -85,21 +126,33 @@ function stopDictation(): void {
 }
 
 function finishDictation(transcript: string): void {
-  clearSilenceTimer();
+  if (isFinishing) return;
+  isFinishing = true;
 
+  clearSilenceTimer();
   sendToOverlay(IPC_CHANNELS.DICTATION_STOP, transcript);
 
-  // Wait for overlay to start dismissing, then type
-  setTimeout(() => {
-    if (transcript.trim().length > 0) {
+  if (transcript.trim().length > 0) {
+    // Estimate typing duration to avoid resetting state before typing completes
+    const estimatedTypingMs = transcript.length * KEYSTROKE_DELAY_MS + 200;
+
+    setTimeout(() => {
       native.keyboardType(transcript, KEYSTROKE_DELAY_MS);
-    }
-    resetState();
-  }, 100);
+    }, 100);
+
+    setTimeout(() => {
+      resetState();
+    }, 100 + estimatedTypingMs);
+  } else {
+    setTimeout(() => {
+      resetState();
+    }, 100);
+  }
 }
 
 function resetState(): void {
   state = 'idle';
+  isFinishing = false;
   setRecordingState(false);
   clearSilenceTimer();
 

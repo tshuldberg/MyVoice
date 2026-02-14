@@ -63,7 +63,7 @@ body {
 .waveform {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   height: 28px;
   flex-shrink: 0;
 }

@@ -1,7 +1,7 @@
-import { app } from 'electron';
+import { app, globalShortcut } from 'electron';
 import { createOverlayWindow } from './overlay-window';
 import { createTray } from './tray';
-import { toggleDictation } from './dictation-controller';
+import { toggleDictation, cancelDictation, getDictationState } from './dictation-controller';
 import { hotkeyStart, hotkeyStop } from './native-bridge';
 
 // Prevent multiple instances
@@ -25,11 +25,19 @@ app.whenReady().then(() => {
     toggleDictation();
   });
 
+  // Register Escape key to cancel active dictation
+  globalShortcut.register('Escape', () => {
+    if (getDictationState() !== 'idle') {
+      cancelDictation();
+    }
+  });
+
   console.log('MyVoice is running. Double-tap fn to dictate.');
 });
 
 app.on('will-quit', () => {
   hotkeyStop();
+  globalShortcut.unregisterAll();
 });
 
 // Keep app running when all windows are closed (menu bar app)

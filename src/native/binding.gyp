@@ -26,10 +26,10 @@
       "xcode_settings": {
         "CLANG_ENABLE_OBJC_ARC": "YES",
         "MACOSX_DEPLOYMENT_TARGET": "13.0",
-        "OTHER_CFLAGS": ["-ObjC"],
-        "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
-        "CLANG_CXX_LANGUAGE_STANDARD": "c++17"
-      }
+        "GCC_ENABLE_CPP_EXCEPTIONS": "YES"
+      },
+      "cflags_cc": ["-std=c++17", "-ObjC++"],
+      "cflags": ["-ObjC"]
     }
   ]
 }

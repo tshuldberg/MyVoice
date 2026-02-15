@@ -1,0 +1,63 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm test *)",
+      "Bash(npm list *)",
+      "Bash(npx *)",
+      "Bash(node-gyp *)",
+      "Bash(electron *)",
+      "Bash(tsc *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git worktree *)",
+      "Bash(git show *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git remote *)",
+      "Bash(git rev-parse *)",
+      "Bash(git mv *)",
+      "Bash(gh *)",
+      "Bash(brew list *)",
+      "Bash(brew info *)",
+      "Bash(whisper-cli *)",
+      "Bash(ls *)",
+      "Bash(which *)",
+      "Bash(wc *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(open *)",
+      "Bash(xcode-select *)",
+      "Bash(xcodebuild *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -f *)",
+      "Bash(sudo *)",
+      "Bash(brew uninstall *)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  },
+  "enabledPlugins": {
+    "github@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true
+  }
+}

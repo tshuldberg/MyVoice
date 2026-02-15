@@ -1,0 +1,37 @@
+{
+  "name": "myvoice",
+  "version": "0.1.0",
+  "description": "Privacy-first macOS dictation app. Double-tap fn to dictate anywhere.",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build:ts": "tsc",
+    "build:native": "cd src/native && node-gyp rebuild --runtime=electron --target=$(node -e \"console.log(require('electron/package.json').version)\") --dist-url=https://electronjs.org/headers",
+    "build:native:system": "cd src/native && node-gyp rebuild",
+    "build": "npm run build:native && npm run build:ts",
+    "rebuild": "npm run build:native",
+    "dev": "npm run build && electron .",
+    "start": "electron .",
+    "package": "scripts/package-mac.sh",
+    "release:mac": "scripts/release-mac.sh",
+    "test": "npm run build:ts && node --test tests/*.test.mjs"
+  },
+  "author": "Trey Shuldberg",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tshuldberg/MyVoice.git"
+  },
+  "homepage": "https://github.com/tshuldberg/MyVoice",
+  "bugs": {
+    "url": "https://github.com/tshuldberg/MyVoice/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "electron": "^40.4.1",
+    "electron-builder": "^26.7.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.5.0"
+  }
+}

@@ -11,6 +11,18 @@ export const IPC_CHANNELS = {
   OVERLAY_READY: 'overlay:ready',
   OVERLAY_DISMISSED: 'overlay:dismissed',
   OVERLAY_SET_SIZE: 'overlay:set-size',
+  APP_GET_STATE: 'app:get-state',
+  APP_SET_FORMATTING_MODE: 'app:set-formatting-mode',
+  APP_SET_AI_ENHANCEMENT: 'app:set-ai-enhancement',
+  APP_SET_AUTO_STOP: 'app:set-auto-stop',
+  APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
+  APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
+  APP_GET_TODAY_LOG: 'app:get-today-log',
+  APP_GET_LOG_BY_DATE: 'app:get-log-by-date',
+  APP_LIST_LOG_DATES: 'app:list-log-dates',
+  APP_EXPORT_LOG: 'app:export-log',
+  APP_LOG_UPDATED: 'app:log-updated',
+  APP_NAVIGATE: 'app:navigate',
 } as const;
 
 // Dictation state machine

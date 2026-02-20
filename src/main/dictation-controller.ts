@@ -9,6 +9,8 @@ import type { WhisperPaths } from './dependency-setup';
 import { getFormattingSettings } from './formatting-settings';
 import { formatTranscript } from './transcript-formatter';
 import { getDictationSettings, formatAutoStopDelayLabel } from './dictation-settings';
+import { appendRecordingLog } from './recording-log';
+import { broadcastLogUpdated } from './app-window';
 
 let state: DictationState = 'idle';
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -187,6 +189,10 @@ function finishDictation(transcript: string): void {
   isFinishing = true;
 
   console.log('[MyVoice] finishDictation:', JSON.stringify(transcript));
+  const logged = appendRecordingLog(transcript);
+  if (logged) {
+    broadcastLogUpdated();
+  }
 
   clearSilenceTimer();
   sendToOverlay(IPC_CHANNELS.DICTATION_STOP, transcript);

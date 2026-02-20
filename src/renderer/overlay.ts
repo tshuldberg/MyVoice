@@ -1,22 +1,62 @@
-import {
-  OVERLAY_EXPANDED_HEIGHT,
-  OVERLAY_EXPANDED_WIDTH,
-  OVERLAY_MINI_HEIGHT,
-  OVERLAY_MINI_WIDTH,
-  WAVEFORM_LEVEL_DECAY,
-  WAVEFORM_LEVEL_SMOOTHING_ALPHA,
-  WAVEFORM_MAX_HEIGHT,
-  WAVEFORM_MIN_HEIGHT,
-  WAVEFORM_NO_INPUT_MS,
-  WAVEFORM_SAMPLE_COUNT,
-} from '../shared/constants';
-import {
-  IPC_CHANNELS,
-  OverlaySetSizePayload,
-  WaveformConfigPayload,
-  WaveformSensitivity,
-} from '../shared/types';
-import { onIpc, sendIpc } from './ipc';
+(() => {
+const IPC_CHANNELS = {
+  DICTATION_START: 'dictation:start',
+  DICTATION_STOP: 'dictation:stop',
+  DICTATION_CANCEL: 'dictation:cancel',
+  DICTATION_AUDIO_LEVEL: 'dictation:audio-level',
+  DICTATION_PARTIAL_TEXT: 'dictation:partial-text',
+  DICTATION_ERROR: 'dictation:error',
+  WAVEFORM_CONFIG: 'waveform:config',
+  OVERLAY_READY: 'overlay:ready',
+  OVERLAY_DISMISSED: 'overlay:dismissed',
+  OVERLAY_SET_SIZE: 'overlay:set-size',
+} as const;
+
+const OVERLAY_EXPANDED_WIDTH = 620;
+const OVERLAY_EXPANDED_HEIGHT = 160;
+const OVERLAY_MINI_WIDTH = 260;
+const OVERLAY_MINI_HEIGHT = 56;
+const WAVEFORM_SAMPLE_COUNT = 64;
+const WAVEFORM_MIN_HEIGHT = 3;
+const WAVEFORM_MAX_HEIGHT = 50;
+const WAVEFORM_LEVEL_DECAY = 0.985;
+const WAVEFORM_LEVEL_SMOOTHING_ALPHA = 0.45;
+const WAVEFORM_NO_INPUT_MS = 1200;
+
+type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
+type WaveformSensitivity = 'low' | 'balanced' | 'high';
+
+interface OverlaySetSizePayload {
+  width: number;
+  height: number;
+  position: 'center' | 'top-left';
+}
+
+interface WaveformConfigPayload {
+  sensitivity: WaveformSensitivity;
+  debugOverlay: boolean;
+}
+
+interface MyVoiceIpcBridge {
+  send: (channel: IpcChannel, payload?: unknown) => void;
+  on: (channel: IpcChannel, listener: (...args: unknown[]) => void) => void;
+}
+
+function bridge(): MyVoiceIpcBridge {
+  const ipcBridge = (window as any).myvoiceIpc as MyVoiceIpcBridge | undefined;
+  if (!ipcBridge) {
+    throw new Error('MyVoice IPC bridge is unavailable');
+  }
+  return ipcBridge;
+}
+
+function sendIpc(channel: IpcChannel, payload?: unknown): void {
+  bridge().send(channel, payload);
+}
+
+function onIpc(channel: IpcChannel, listener: (...args: unknown[]) => void): void {
+  bridge().on(channel, listener);
+}
 
 interface SensitivityProfile {
   noiseFloor: number;
@@ -407,3 +447,4 @@ try {
   overlayWindowState.__myvoice_overlay_boot_error = message;
   console.error(`[MyVoice][Overlay] boot failed: ${message}`);
 }
+})();

@@ -71,6 +71,8 @@ MyVoice is built for privacy-first dictation:
 
 > [Homebrew](https://brew.sh) is required. If missing, MyVoice will offer to open the install page on first launch.
 
+For internal team deployment (DMG distribution and Codex CLI setup), see `docs/team-rollout.md`.
+
 ---
 
 ## Requirements

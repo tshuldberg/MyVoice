@@ -4,7 +4,7 @@
   "mac": {
     "category": "public.app-category.productivity",
     "target": ["dmg"],
-    "icon": "assets/icon.icns",
+    "icon": "icon.icns",
     "hardenedRuntime": true,
     "entitlements": "entitlements.plist",
     "entitlementsInherit": "entitlements.plist",
@@ -17,6 +17,8 @@
     "dist/**/*",
     "src/renderer/**/*",
     "src/native/build/**/*.node",
-    "assets/**/*"
+    "assets/**/*",
+    "icon.png",
+    "icon.icns"
   ]
 }

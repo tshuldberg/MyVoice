@@ -1,5 +1,4 @@
 import { Tray, Menu, nativeImage, app, shell } from 'electron';
-import path from 'path';
 import {
   getFormattingSettings,
   setFormattingMode,
@@ -17,46 +16,23 @@ import {
   getDictationSettings,
   setAutoStopPauseMs,
 } from './dictation-settings';
+import { loadTrayIcon } from './icon';
 
 let tray: Tray | null = null;
 let isRecording = false;
 
-function createMicIcon(active: boolean): Electron.NativeImage {
-  // Try file-based icons first
-  const fileName = active ? 'tray-icon-active.png' : 'tray-icon.png';
-  const iconPath = path.join(__dirname, '../../assets', fileName);
-
-  try {
-    const icon = nativeImage.createFromPath(iconPath);
-    if (!icon.isEmpty()) {
-      return icon.resize({ width: 16, height: 16 });
-    }
-  } catch {
-    // Fall through to generated icon
-  }
-
-  // Generate a simple microphone icon via data URL
-  // 32x32 canvas: mic body (rounded rect) + stand (line + arc)
-  const color = active ? 'FF3B30' : '8E8E93'; // Red when recording, gray when idle
-  const buf = Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-      <rect x="11" y="4" width="10" height="16" rx="5" fill="#${color}"/>
-      <path d="M8 16 a8 8 0 0 0 16 0" stroke="#${color}" stroke-width="2" fill="none"/>
-      <line x1="16" y1="24" x2="16" y2="28" stroke="#${color}" stroke-width="2"/>
-      <line x1="12" y1="28" x2="20" y2="28" stroke="#${color}" stroke-width="2" stroke-linecap="round"/>
-    </svg>`,
-    'utf8'
-  );
-  const dataUrl = `data:image/svg+xml;base64,${buf.toString('base64')}`;
-  const icon = nativeImage.createFromDataURL(dataUrl);
-  if (!active) icon.setTemplateImage(true);
-  return icon.resize({ width: 16, height: 16 });
+interface TrayActions {
+  openMainWindow?: () => void;
+  openSettings?: () => void;
+  openTodayLog?: () => void;
 }
 
-export function createTray(): Tray {
-  const icon = createMicIcon(false);
-  tray = new Tray(icon);
-  tray.setToolTip('MyVoice — Double-tap fn to dictate');
+let trayActions: TrayActions = {};
+
+export function createTray(actions: TrayActions = {}): Tray {
+  trayActions = actions;
+  tray = new Tray(loadTrayIcon() ?? nativeImage.createEmpty());
+  tray.setToolTip('MyVoice — Double-tap fn or use your configured shortcut');
   updateTrayMenu();
   return tray;
 }
@@ -66,8 +42,8 @@ export function setRecordingState(recording: boolean): void {
   updateTrayMenu();
 
   if (tray) {
-    tray.setImage(createMicIcon(recording));
-    tray.setToolTip(recording ? 'MyVoice — Recording...' : 'MyVoice — Double-tap fn to dictate');
+    tray.setImage(loadTrayIcon() ?? nativeImage.createEmpty());
+    tray.setToolTip(recording ? 'MyVoice — Recording...' : 'MyVoice — Double-tap fn or use your configured shortcut');
   }
 }
 
@@ -81,6 +57,25 @@ function updateTrayMenu(): void {
     {
       label: 'MyVoice',
       enabled: false,
+    },
+    { type: 'separator' },
+    {
+      label: 'Open MyVoice',
+      click: () => {
+        trayActions.openMainWindow?.();
+      },
+    },
+    {
+      label: 'Settings',
+      click: () => {
+        trayActions.openSettings?.();
+      },
+    },
+    {
+      label: "Today's Log",
+      click: () => {
+        trayActions.openTodayLog?.();
+      },
     },
     { type: 'separator' },
     {

@@ -147,6 +147,36 @@ Napi::Value KeyboardRequestPermission(const Napi::CallbackInfo& info) {
     return info.Env().Undefined();
 }
 
+// --- Audio Input Device Selection --------------------------------------
+
+Napi::Value ListAudioInputDevices(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    NSArray<NSDictionary *> *devices = [SpeechBridge listAudioInputDevices];
+
+    Napi::Array result = Napi::Array::New(env, devices.count);
+    for (NSUInteger i = 0; i < devices.count; i++) {
+        NSDictionary *device = devices[i];
+        Napi::Object obj = Napi::Object::New(env);
+        obj.Set("uid", Napi::String::New(env, [device[@"uid"] UTF8String]));
+        obj.Set("name", Napi::String::New(env, [device[@"name"] UTF8String]));
+        result.Set(i, obj);
+    }
+    return result;
+}
+
+Napi::Value SetAudioInputDevice(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    std::string uid = info[0].As<Napi::String>().Utf8Value();
+    NSString *nsUid = [NSString stringWithUTF8String:uid.c_str()];
+    BOOL ok = [SpeechBridge setAudioInputDeviceUID:nsUid];
+    return Napi::Boolean::New(env, ok);
+}
+
+Napi::Value ClearAudioInputDevice(const Napi::CallbackInfo& info) {
+    [SpeechBridge clearAudioInputDevice];
+    return info.Env().Undefined();
+}
+
 // --- Module Registration -----------------------------------------------
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -160,6 +190,11 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     // Hotkey
     exports.Set("hotkeyStart", Napi::Function::New(env, HotkeyStart));
     exports.Set("hotkeyStop", Napi::Function::New(env, HotkeyStop));
+
+    // Audio input device
+    exports.Set("listAudioInputDevices", Napi::Function::New(env, ListAudioInputDevices));
+    exports.Set("setAudioInputDevice", Napi::Function::New(env, SetAudioInputDevice));
+    exports.Set("clearAudioInputDevice", Napi::Function::New(env, ClearAudioInputDevice));
 
     // Keyboard
     exports.Set("keyboardType", Napi::Function::New(env, KeyboardType));

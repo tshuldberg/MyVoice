@@ -11,6 +11,9 @@
                            onError:(void (^)(NSString *error))errorCallback;
 + (NSString *)stopAndSaveRecording;
 + (void)stopRecognition;
++ (NSArray<NSDictionary *> *)listAudioInputDevices;
++ (BOOL)setAudioInputDeviceUID:(NSString *)deviceUID;
++ (void)clearAudioInputDevice;
 @end
 
 // Hotkey (fn double-tap) bridge

@@ -10,6 +10,8 @@ import {
   setWaveformDebugOverlay,
 } from './visualization-settings';
 import { broadcastWaveformConfig } from './overlay-window';
+import { getAudioSettings, setSelectedDeviceUID } from './audio-settings';
+import * as native from './native-bridge';
 import {
   AUTO_STOP_DELAY_OPTIONS_MS,
   formatAutoStopDelayLabel,
@@ -53,6 +55,8 @@ function updateTrayMenu(): void {
   const formatting = getFormattingSettings();
   const visualization = getVisualizationSettings();
   const dictation = getDictationSettings();
+  const audio = getAudioSettings();
+  const availableDevices = native.listAudioInputDevices();
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'MyVoice',
@@ -195,6 +199,31 @@ function updateTrayMenu(): void {
             updateTrayMenu();
           },
         },
+      ],
+    },
+    {
+      label: 'Audio Input',
+      submenu: [
+        {
+          label: 'System Default',
+          type: 'radio',
+          checked: !audio.selectedDeviceUID,
+          click: () => {
+            setSelectedDeviceUID('');
+            native.clearAudioInputDevice();
+            updateTrayMenu();
+          },
+        },
+        ...availableDevices.map((device) => ({
+          label: device.name,
+          type: 'radio' as const,
+          checked: audio.selectedDeviceUID === device.uid,
+          click: () => {
+            setSelectedDeviceUID(device.uid);
+            native.setAudioInputDevice(device.uid);
+            updateTrayMenu();
+          },
+        })),
       ],
     },
     { type: 'separator' },

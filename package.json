@@ -13,6 +13,7 @@
     "start": "electron .",
     "package": "scripts/package-mac.sh",
     "release:mac": "scripts/release-mac.sh",
+    "postinstall": "bash scripts/patch-electron-name.sh",
     "test": "npm run build:ts && node --test tests/*.test.mjs"
   },
   "author": "Trey Shuldberg",

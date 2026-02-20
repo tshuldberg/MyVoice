@@ -20,7 +20,9 @@
         "-framework AppKit",
         "-framework AVFoundation",
         "-framework CoreGraphics",
-        "-framework ApplicationServices"
+        "-framework ApplicationServices",
+        "-framework CoreAudio",
+        "-framework AudioToolbox"
       ],
       "xcode_settings": {
         "CLANG_ENABLE_OBJC_ARC": "YES",

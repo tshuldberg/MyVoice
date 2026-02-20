@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   APP_LIST_LOG_DATES: 'app:list-log-dates',
   APP_EXPORT_LOG: 'app:export-log',
   APP_LOG_UPDATED: 'app:log-updated',
+  APP_SET_AUDIO_DEVICE: 'app:set-audio-device',
   APP_NAVIGATE: 'app:navigate',
 } as const;
 

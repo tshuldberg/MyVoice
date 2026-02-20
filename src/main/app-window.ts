@@ -21,6 +21,8 @@ import {
 import { listRecordingLogDates, readRecordingLogByDate, readTodayRecordingLog, getTodayDateKey, type RecordingLogEntry } from './recording-log';
 import { getHotkeySettings, setTriggerShortcut } from './hotkey-settings';
 import { applyTriggerShortcut, getTriggerShortcutStatus } from './trigger-shortcut';
+import { getAudioSettings, setSelectedDeviceUID } from './audio-settings';
+import * as native from './native-bridge';
 
 export type AppSection = 'settings' | 'logs';
 
@@ -32,6 +34,10 @@ export interface AppStatePayload {
     triggerShortcut: string;
     activeShortcut: string | null;
     error: string | null;
+  };
+  audio: {
+    selectedDeviceUID: string;
+    availableDevices: { uid: string; name: string }[];
   };
   todayLog: ReturnType<typeof readTodayRecordingLog>;
   todayDateKey: string;
@@ -54,6 +60,7 @@ const IPC_CHANNELS = {
   APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
   APP_SET_TRIGGER_SHORTCUT: 'app:set-trigger-shortcut',
+  APP_SET_AUDIO_DEVICE: 'app:set-audio-device',
   APP_GET_TODAY_LOG: 'app:get-today-log',
   APP_GET_LOG_BY_DATE: 'app:get-log-by-date',
   APP_LIST_LOG_DATES: 'app:list-log-dates',
@@ -82,6 +89,10 @@ function getAppState(): AppStatePayload {
       triggerShortcut: hotkey.triggerShortcut,
       activeShortcut: hotkeyStatus.activeShortcut,
       error: hotkeyStatus.error,
+    },
+    audio: {
+      selectedDeviceUID: getAudioSettings().selectedDeviceUID,
+      availableDevices: native.listAudioInputDevices(),
     },
     todayLog: readTodayRecordingLog(),
     todayDateKey: getTodayDateKey(),
@@ -161,6 +172,16 @@ function registerHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.APP_SET_TRIGGER_SHORTCUT, (_event, shortcut: string) => {
     const next = setTriggerShortcut(String(shortcut || ''));
     applyTriggerShortcut(next.triggerShortcut);
+    return getAppState();
+  });
+  ipcMain.handle(IPC_CHANNELS.APP_SET_AUDIO_DEVICE, (_event, deviceUID: string) => {
+    const uid = String(deviceUID || '').trim();
+    setSelectedDeviceUID(uid);
+    if (uid) {
+      native.setAudioInputDevice(uid);
+    } else {
+      native.clearAudioInputDevice();
+    }
     return getAppState();
   });
 

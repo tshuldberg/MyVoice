@@ -9,6 +9,7 @@ import type { WhisperPaths } from './dependency-setup';
 import { getFormattingSettings } from './formatting-settings';
 import { formatTranscript } from './transcript-formatter';
 import { getDictationSettings, formatAutoStopDelayLabel } from './dictation-settings';
+import { getAudioSettings } from './audio-settings';
 import { appendRecordingLog } from './recording-log';
 import { broadcastLogUpdated } from './app-window';
 
@@ -84,6 +85,14 @@ async function startDictation(): Promise<void> {
   showOverlay();
   lastAudioAboveThreshold = Date.now();
   audioLevelCount = 0;
+
+  // Apply saved audio input device before recording
+  const audioDeviceUID = getAudioSettings().selectedDeviceUID;
+  if (audioDeviceUID) {
+    native.setAudioInputDevice(audioDeviceUID);
+  } else {
+    native.clearAudioInputDevice();
+  }
 
   console.log('[MyVoice] Starting audio recording for Whisper');
   console.log(

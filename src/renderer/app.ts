@@ -7,6 +7,7 @@ const IPC_CHANNELS = {
   APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
   APP_SET_TRIGGER_SHORTCUT: 'app:set-trigger-shortcut',
+  APP_SET_AUDIO_DEVICE: 'app:set-audio-device',
   APP_GET_TODAY_LOG: 'app:get-today-log',
   APP_GET_LOG_BY_DATE: 'app:get-log-by-date',
   APP_LIST_LOG_DATES: 'app:list-log-dates',
@@ -43,6 +44,10 @@ interface AppStatePayload {
     sensitivity: WaveformSensitivity;
     debugOverlay: boolean;
   };
+  audio: {
+    selectedDeviceUID: string;
+    availableDevices: { uid: string; name: string }[];
+  };
   todayLog: RecordingLogEntry[];
   todayDateKey: string;
   availableLogDates: string[];
@@ -74,6 +79,7 @@ const logsView = required<HTMLElement>('view-logs');
 const formattingModeEl = required<HTMLSelectElement>('formatting-mode');
 const aiEnhancementEl = required<HTMLInputElement>('ai-enhancement');
 const autoStopEl = required<HTMLSelectElement>('auto-stop');
+const audioDeviceEl = required<HTMLSelectElement>('audio-device');
 const waveformSensitivityEl = required<HTMLSelectElement>('waveform-sensitivity');
 const waveformDebugEl = required<HTMLInputElement>('waveform-debug');
 const triggerShortcutEl = required<HTMLInputElement>('trigger-shortcut');
@@ -196,6 +202,21 @@ function renderSettings(payload: AppStatePayload): void {
     triggerShortcutStatusEl.textContent = 'No custom shortcut set. Double-tap fn is active.';
   }
 
+  // Audio device dropdown
+  audioDeviceEl.textContent = '';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'System Default';
+  if (!payload.audio.selectedDeviceUID) defaultOpt.selected = true;
+  audioDeviceEl.appendChild(defaultOpt);
+  for (const device of payload.audio.availableDevices) {
+    const opt = document.createElement('option');
+    opt.value = device.uid;
+    opt.textContent = device.name;
+    if (device.uid === payload.audio.selectedDeviceUID) opt.selected = true;
+    audioDeviceEl.appendChild(opt);
+  }
+
   const selected = String(payload.dictation.autoStopPauseMs);
   autoStopEl.textContent = '';
   for (const optionMs of payload.autoStopOptionsMs) {
@@ -270,6 +291,14 @@ autoStopEl.addEventListener('change', async () => {
   const next = await ipc().invoke(
     IPC_CHANNELS.APP_SET_AUTO_STOP,
     Number(autoStopEl.value)
+  ) as AppStatePayload;
+  render(next);
+});
+
+audioDeviceEl.addEventListener('change', async () => {
+  const next = await ipc().invoke(
+    IPC_CHANNELS.APP_SET_AUDIO_DEVICE,
+    audioDeviceEl.value
   ) as AppStatePayload;
   render(next);
 });

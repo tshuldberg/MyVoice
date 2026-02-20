@@ -34,6 +34,25 @@ export function speechStop(): void {
   native.speechStop();
 }
 
+// --- Audio Input Device Selection ------------------------------------------
+
+export interface AudioInputDevice {
+  uid: string;
+  name: string;
+}
+
+export function listAudioInputDevices(): AudioInputDevice[] {
+  return native.listAudioInputDevices();
+}
+
+export function setAudioInputDevice(uid: string): boolean {
+  return native.setAudioInputDevice(uid);
+}
+
+export function clearAudioInputDevice(): void {
+  native.clearAudioInputDevice();
+}
+
 // --- Hotkey Detection ------------------------------------------------------
 
 export function hotkeyStart(onDoubleTapFn: () => void): void {

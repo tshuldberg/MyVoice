@@ -1,5 +1,7 @@
 #import "SwiftBridge.h"
 #import <AVFoundation/AVFoundation.h>
+#import <CoreAudio/CoreAudio.h>
+#import <AudioToolbox/AudioToolbox.h>
 
 @implementation SpeechBridge
 
@@ -7,6 +9,7 @@ static AVAudioEngine *audioEngine;
 static NSMutableData *pcmData;
 static double recordingSampleRate;
 static id configObserver;
+static NSString *selectedDeviceUID;
 
 + (void)requestAuthorization:(void (^)(BOOL granted))callback {
     // No speech recognition auth needed with Whisper — just check mic access
@@ -45,6 +48,38 @@ static id configObserver;
 
     // Set up audio engine
     audioEngine = [[AVAudioEngine alloc] init];
+
+    // Apply selected audio input device if set
+    if (selectedDeviceUID && selectedDeviceUID.length > 0) {
+        AudioObjectPropertyAddress translateAddr = {
+            kAudioHardwarePropertyTranslateUIDToDevice,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        CFStringRef uidRef = (__bridge CFStringRef)selectedDeviceUID;
+        AudioDeviceID deviceId = kAudioObjectUnknown;
+        UInt32 deviceIdSize = sizeof(deviceId);
+        OSStatus status = AudioObjectGetPropertyData(
+            kAudioObjectSystemObject, &translateAddr, sizeof(uidRef), &uidRef,
+            &deviceIdSize, &deviceId
+        );
+        if (status == noErr && deviceId != kAudioObjectUnknown) {
+            OSStatus setStatus = AudioUnitSetProperty(
+                audioEngine.inputNode.audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global, 0,
+                &deviceId, sizeof(deviceId)
+            );
+            if (setStatus == noErr) {
+                NSLog(@"[MyVoice] Set audio input device: %@ (id=%u)", selectedDeviceUID, (unsigned)deviceId);
+            } else {
+                NSLog(@"[MyVoice] Failed to set audio input device (status=%d), using default", (int)setStatus);
+            }
+        } else {
+            NSLog(@"[MyVoice] Could not translate device UID '%@' (status=%d), using default", selectedDeviceUID, (int)status);
+        }
+    }
+
     AVAudioInputNode *inputNode = audioEngine.inputNode;
 
     // Use the hardware's native format — whisper-cli resamples internally
@@ -186,6 +221,94 @@ static id configObserver;
     }
     audioEngine = nil;
     pcmData = nil;
+}
+
++ (NSArray<NSDictionary *> *)listAudioInputDevices {
+    AudioObjectPropertyAddress devicesAddr = {
+        kAudioHardwarePropertyDevices,
+        kAudioObjectPropertyScopeGlobal,
+        kAudioObjectPropertyElementMain
+    };
+
+    UInt32 dataSize = 0;
+    OSStatus status = AudioObjectGetPropertyDataSize(
+        kAudioObjectSystemObject, &devicesAddr, 0, NULL, &dataSize
+    );
+    if (status != noErr || dataSize == 0) return @[];
+
+    UInt32 deviceCount = dataSize / sizeof(AudioDeviceID);
+    AudioDeviceID *deviceIds = (AudioDeviceID *)malloc(dataSize);
+    status = AudioObjectGetPropertyData(
+        kAudioObjectSystemObject, &devicesAddr, 0, NULL, &dataSize, deviceIds
+    );
+    if (status != noErr) {
+        free(deviceIds);
+        return @[];
+    }
+
+    NSMutableArray<NSDictionary *> *results = [NSMutableArray array];
+
+    for (UInt32 i = 0; i < deviceCount; i++) {
+        AudioDeviceID deviceId = deviceIds[i];
+
+        // Check if device has input streams
+        AudioObjectPropertyAddress streamsAddr = {
+            kAudioDevicePropertyStreams,
+            kAudioDevicePropertyScopeInput,
+            kAudioObjectPropertyElementMain
+        };
+        UInt32 streamsSize = 0;
+        status = AudioObjectGetPropertyDataSize(deviceId, &streamsAddr, 0, NULL, &streamsSize);
+        if (status != noErr || streamsSize == 0) continue;
+
+        // Get device UID
+        AudioObjectPropertyAddress uidAddr = {
+            kAudioDevicePropertyDeviceUID,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        CFStringRef uidRef = NULL;
+        UInt32 uidSize = sizeof(uidRef);
+        status = AudioObjectGetPropertyData(deviceId, &uidAddr, 0, NULL, &uidSize, &uidRef);
+        if (status != noErr || !uidRef) continue;
+
+        // Get device name
+        AudioObjectPropertyAddress nameAddr = {
+            kAudioObjectPropertyName,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        CFStringRef nameRef = NULL;
+        UInt32 nameSize = sizeof(nameRef);
+        status = AudioObjectGetPropertyData(deviceId, &nameAddr, 0, NULL, &nameSize, &nameRef);
+        if (status != noErr || !nameRef) {
+            CFRelease(uidRef);
+            continue;
+        }
+
+        [results addObject:@{
+            @"uid": (__bridge_transfer NSString *)uidRef,
+            @"name": (__bridge_transfer NSString *)nameRef,
+        }];
+    }
+
+    free(deviceIds);
+    return [results copy];
+}
+
++ (BOOL)setAudioInputDeviceUID:(NSString *)deviceUID {
+    if (!deviceUID || deviceUID.length == 0) {
+        [self clearAudioInputDevice];
+        return YES;
+    }
+    selectedDeviceUID = [deviceUID copy];
+    NSLog(@"[MyVoice] Audio input device UID set to: %@", selectedDeviceUID);
+    return YES;
+}
+
++ (void)clearAudioInputDevice {
+    selectedDeviceUID = nil;
+    NSLog(@"[MyVoice] Audio input device cleared (using system default)");
 }
 
 @end

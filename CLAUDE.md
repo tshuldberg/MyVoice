@@ -243,3 +243,7 @@ When `/dispatch` detects 2+ plans targeting this project with overlapping scope,
 
 **File:** timeline.md
 Update after every development session.
+
+
+## Writing Style
+- Do not use em dashes in documents or writing.

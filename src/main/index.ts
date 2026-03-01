@@ -9,6 +9,27 @@ import { loadDockIcon } from './icon';
 import { getHotkeySettings } from './hotkey-settings';
 import { applyTriggerShortcut, clearTriggerShortcut, setTriggerShortcutHandler } from './trigger-shortcut';
 
+function installEpipeGuards(): void {
+  const installGuard = (stream: NodeJS.WriteStream | undefined): void => {
+    if (!stream || typeof stream.on !== 'function') return;
+
+    stream.on('error', (error: NodeJS.ErrnoException) => {
+      if (error?.code === 'EPIPE') {
+        return;
+      }
+
+      process.nextTick(() => {
+        throw error;
+      });
+    });
+  };
+
+  installGuard(process.stdout);
+  installGuard(process.stderr);
+}
+
+installEpipeGuards();
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {

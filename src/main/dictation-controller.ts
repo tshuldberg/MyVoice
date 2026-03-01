@@ -20,6 +20,7 @@ let isFinishing = false;
 let permissionsChecked = false;
 let audioLevelCount = 0;
 const SILENCE_AUDIO_THRESHOLD = 0.02;
+const SHOULD_LOG_AUDIO_LEVELS = process.env.MYVOICE_DEBUG_AUDIO_LEVELS === '1';
 
 let whisperCli: string | null = null;
 let whisperModel: string | null = null;
@@ -103,7 +104,10 @@ async function startDictation(): Promise<void> {
     // onAudioLevel
     (level: number) => {
       audioLevelCount++;
-      if (audioLevelCount <= 5 || (level > SILENCE_AUDIO_THRESHOLD && audioLevelCount % 10 === 0)) {
+      if (
+        SHOULD_LOG_AUDIO_LEVELS
+        && (audioLevelCount <= 5 || (level > SILENCE_AUDIO_THRESHOLD && audioLevelCount % 10 === 0))
+      ) {
         console.log(`[MyVoice] Audio level #${audioLevelCount}: ${level.toFixed(4)}`);
       }
 

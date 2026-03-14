@@ -10,6 +10,11 @@ Privacy-first macOS dictation app. Double-tap the fn key to activate, speak natu
 - `.claude/docs/common-mistakes.md` — Known pitfalls for Electron, native addon, TypeScript, and packaging
 - `.claude/skills/SKILLS_REGISTRY.md` — All available skills (project + marketing)
 
+## Instruction Pair (Critical)
+
+- Keep this file and `AGENTS.md` synchronized for persistent project rules.
+- Read `AGENTS.md`, `.claude/settings.json`, `.claude/docs/architecture.md`, and `.claude/docs/common-mistakes.md` before making substantial edits.
+
 ## Stack
 
 - **Runtime:** Electron 33+

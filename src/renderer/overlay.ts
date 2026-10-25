@@ -6,6 +6,8 @@ const IPC_CHANNELS = {
   DICTATION_AUDIO_LEVEL: 'dictation:audio-level',
   DICTATION_PARTIAL_TEXT: 'dictation:partial-text',
   DICTATION_ERROR: 'dictation:error',
+  DICTATION_CONTEXT: 'dictation:context',
+  DICTATION_NOTICE: 'dictation:notice',
   WAVEFORM_CONFIG: 'waveform:config',
   OVERLAY_READY: 'overlay:ready',
   OVERLAY_DISMISSED: 'overlay:dismissed',
@@ -155,6 +157,9 @@ try {
   const transcriptEl =
     (document.getElementById('transcript') as HTMLElement | null) ??
     createFallbackText(overlay, 'transcript');
+  const modeLabelEl = document.getElementById('mode-label') as HTMLElement | null;
+  let noticeActive = false;
+  let noticeTimer: number | null = null;
   const btnMinimize = document.getElementById('btn-minimize') as HTMLButtonElement | null;
   const btnExpand = document.getElementById('btn-expand') as HTMLButtonElement | null;
   const mainBarsEl = getOrCreateContainer('waveform-bars', 'waveform-bars', waveformArea);
@@ -366,6 +371,9 @@ try {
   }
 
   onIpc(IPC_CHANNELS.DICTATION_START, () => {
+    noticeActive = false;
+    if (noticeTimer !== null) clearTimeout(noticeTimer);
+    noticeTimer = null;
     overlay.classList.remove('dismissing', 'transitioning');
     overlay.classList.remove('minimized');
     overlay.classList.add('expanded');
@@ -400,7 +408,29 @@ try {
 
   onIpc(IPC_CHANNELS.DICTATION_PARTIAL_TEXT, (text: unknown) => {
     transcriptEl.textContent = typeof text === 'string' ? text : '';
-    statusEl.textContent = 'Listening...';
+    if (!noticeActive) statusEl.textContent = 'Listening...';
+  });
+
+  // The active mode ("Notes · Mail"), shown next to the status.
+  onIpc(IPC_CHANNELS.DICTATION_CONTEXT, (label: unknown) => {
+    if (!modeLabelEl) return;
+    modeLabelEl.textContent = typeof label === 'string' ? label : '';
+    modeLabelEl.hidden = !modeLabelEl.textContent;
+  });
+
+  // Short messages replace the status for a few seconds; sticky ones
+  // ("Transcribing…") stay until the dictation ends.
+  onIpc(IPC_CHANNELS.DICTATION_NOTICE, (payload: unknown) => {
+    const data = (payload && typeof payload === 'object' ? payload : {}) as { text?: unknown; sticky?: unknown };
+    if (typeof data.text !== 'string') return;
+    statusEl.textContent = data.text;
+    noticeActive = true;
+    if (noticeTimer !== null) clearTimeout(noticeTimer);
+    noticeTimer = data.sticky === true ? null : window.setTimeout(() => {
+      noticeActive = false;
+      noticeTimer = null;
+      if (isRecording) statusEl.textContent = 'Listening...';
+    }, 3500);
   });
 
   onIpc(IPC_CHANNELS.DICTATION_STOP, (finalText: unknown) => {

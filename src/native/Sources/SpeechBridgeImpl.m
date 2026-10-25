@@ -5,11 +5,48 @@
 
 @implementation SpeechBridge
 
++ (void)initialize {
+    if (self == [SpeechBridge class]) {
+        pcmLock = [[NSObject alloc] init];
+    }
+}
+
 static AVAudioEngine *audioEngine;
 static NSMutableData *pcmData;
 static double recordingSampleRate;
 static id configObserver;
 static NSString *selectedDeviceUID;
+// pcmData is appended on the audio thread and read by snapshots on the main thread.
+static NSObject *pcmLock;
+
+static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
+    uint32_t dataSize = (uint32_t)pcm.length;
+    uint32_t fileSize = 36 + dataSize;
+    uint16_t audioFormat = 3; // IEEE float
+    uint16_t numChannels = 1;
+    uint32_t rate = (uint32_t)sampleRate;
+    uint16_t bitsPerSample = 32;
+    uint32_t byteRate = rate * numChannels * bitsPerSample / 8;
+    uint16_t blockAlign = numChannels * bitsPerSample / 8;
+    uint32_t fmtSize = 16;
+
+    NSMutableData *wav = [NSMutableData dataWithCapacity:44 + dataSize];
+    [wav appendBytes:"RIFF" length:4];
+    [wav appendBytes:&fileSize length:4];
+    [wav appendBytes:"WAVE" length:4];
+    [wav appendBytes:"fmt " length:4];
+    [wav appendBytes:&fmtSize length:4];
+    [wav appendBytes:&audioFormat length:2];
+    [wav appendBytes:&numChannels length:2];
+    [wav appendBytes:&rate length:4];
+    [wav appendBytes:&byteRate length:4];
+    [wav appendBytes:&blockAlign length:2];
+    [wav appendBytes:&bitsPerSample length:2];
+    [wav appendBytes:"data" length:4];
+    [wav appendBytes:&dataSize length:4];
+    [wav appendData:pcm];
+    return wav;
+}
 
 + (void)requestAuthorization:(void (^)(BOOL granted))callback {
     // No speech recognition auth needed with Whisper — just check mic access
@@ -94,7 +131,9 @@ static NSString *selectedDeviceUID;
     }
 
     // Accumulate PCM data for WAV file at the hardware sample rate
-    pcmData = [NSMutableData data];
+    @synchronized (pcmLock) {
+        pcmData = [NSMutableData data];
+    }
     recordingSampleRate = inputFormat.sampleRate;
 
     NSLog(@"[MyVoice] Recording at %.0fHz for Whisper (will resample internally)",
@@ -110,7 +149,9 @@ static NSString *selectedDeviceUID;
         UInt32 frameLength = buffer.frameLength;
 
         // Append first channel's PCM float data for WAV file
-        [pcmData appendBytes:channelData length:frameLength * sizeof(float)];
+        @synchronized (pcmLock) {
+            [pcmData appendBytes:channelData length:frameLength * sizeof(float)];
+        }
 
         // Calculate RMS level for waveform visualization
         float sumSquares = 0.0f;
@@ -156,56 +197,37 @@ static NSString *selectedDeviceUID;
     }
     audioEngine = nil;
 
-    if (!pcmData || pcmData.length == 0) {
+    NSData *recorded;
+    @synchronized (pcmLock) {
+        recorded = pcmData;
+        pcmData = nil;
+    }
+    if (!recorded || recorded.length == 0) {
         NSLog(@"[MyVoice] No audio data recorded");
         return nil;
     }
 
     // Write WAV file to temp directory
     NSString *tempPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"myvoice_recording.wav"];
-    NSLog(@"[MyVoice] Writing WAV: %lu bytes PCM → %@", (unsigned long)pcmData.length, tempPath);
+    NSLog(@"[MyVoice] Writing WAV: %lu bytes PCM → %@", (unsigned long)recorded.length, tempPath);
+    [wavDataFromPCM(recorded, recordingSampleRate) writeToFile:tempPath atomically:YES];
 
-    // Build WAV header (PCM float32, mono, at hardware sample rate)
-    uint32_t dataSize = (uint32_t)pcmData.length;
-    uint32_t fileSize = 36 + dataSize;
-    uint16_t audioFormat = 3; // IEEE float
-    uint16_t numChannels = 1;
-    uint32_t sampleRate = (uint32_t)recordingSampleRate;
-    uint16_t bitsPerSample = 32;
-    uint32_t byteRate = sampleRate * numChannels * bitsPerSample / 8;
-    uint16_t blockAlign = numChannels * bitsPerSample / 8;
-
-    NSMutableData *wavData = [NSMutableData dataWithCapacity:44 + dataSize];
-
-    // RIFF header
-    [wavData appendBytes:"RIFF" length:4];
-    [wavData appendBytes:&fileSize length:4];
-    [wavData appendBytes:"WAVE" length:4];
-
-    // fmt chunk
-    [wavData appendBytes:"fmt " length:4];
-    uint32_t fmtSize = 16;
-    [wavData appendBytes:&fmtSize length:4];
-    [wavData appendBytes:&audioFormat length:2];
-    [wavData appendBytes:&numChannels length:2];
-    [wavData appendBytes:&sampleRate length:4];
-    [wavData appendBytes:&byteRate length:4];
-    [wavData appendBytes:&blockAlign length:2];
-    [wavData appendBytes:&bitsPerSample length:2];
-
-    // data chunk
-    [wavData appendBytes:"data" length:4];
-    [wavData appendBytes:&dataSize length:4];
-    [wavData appendData:pcmData];
-
-    [wavData writeToFile:tempPath atomically:YES];
-
-    pcmData = nil;
-
-    float durationSec = (float)dataSize / (float)(sampleRate * numChannels * bitsPerSample / 8);
-    NSLog(@"[MyVoice] WAV written: %.1f seconds, %u bytes", durationSec, (unsigned)(44 + dataSize));
+    float durationSec = (float)recorded.length / (float)(recordingSampleRate * sizeof(float));
+    NSLog(@"[MyVoice] WAV written: %.1f seconds, %u bytes", durationSec, (unsigned)(44 + recorded.length));
 
     return tempPath;
+}
+
++ (NSString *)snapshotRecordingToPath:(NSString *)path maxSeconds:(double)maxSeconds {
+    NSData *pcm;
+    @synchronized (pcmLock) {
+        if (!pcmData || pcmData.length == 0) return nil;
+        NSUInteger maxBytes = (NSUInteger)(maxSeconds * recordingSampleRate) * sizeof(float);
+        NSUInteger start = (maxSeconds > 0 && pcmData.length > maxBytes) ? pcmData.length - maxBytes : 0;
+        pcm = [pcmData subdataWithRange:NSMakeRange(start, pcmData.length - start)];
+    }
+    if (![wavDataFromPCM(pcm, recordingSampleRate) writeToFile:path atomically:YES]) return nil;
+    return path;
 }
 
 + (void)stopRecognition {
@@ -220,7 +242,9 @@ static NSString *selectedDeviceUID;
         }
     }
     audioEngine = nil;
-    pcmData = nil;
+    @synchronized (pcmLock) {
+        pcmData = nil;
+    }
 }
 
 + (NSArray<NSDictionary *> *)listAudioInputDevices {

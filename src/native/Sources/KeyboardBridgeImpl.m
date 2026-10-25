@@ -72,6 +72,19 @@
     NSLog(@"[MyVoice] Cmd+V posted");
 }
 
++ (void)pressReturn {
+    CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+    if (!source) return;
+    // Keycode 36 is Return.
+    CGEventRef keyDown = CGEventCreateKeyboardEvent(source, 36, true);
+    CGEventPost(kCGHIDEventTap, keyDown);
+    CFRelease(keyDown);
+    CGEventRef keyUp = CGEventCreateKeyboardEvent(source, 36, false);
+    CGEventPost(kCGHIDEventTap, keyUp);
+    CFRelease(keyUp);
+    CFRelease(source);
+}
+
 + (BOOL)checkAccessibilityPermission {
     NSDictionary *options = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @NO};
     return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);

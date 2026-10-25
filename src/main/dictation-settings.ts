@@ -3,13 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { SILENCE_TIMEOUT_MS } from '../shared/constants';
 
-export type AutoStopPauseMs = 1000 | 1500 | 2000 | 3000 | 5000 | 8000;
+/** 0 never stops on silence: hands-free dictation ends with fn or Escape. */
+export type AutoStopPauseMs = 0 | 1000 | 1500 | 2000 | 3000 | 5000 | 8000;
 
 export interface DictationSettings {
   autoStopPauseMs: AutoStopPauseMs;
 }
 
-export const AUTO_STOP_DELAY_OPTIONS_MS: AutoStopPauseMs[] = [1000, 1500, 2000, 3000, 5000, 8000];
+export const AUTO_STOP_DELAY_OPTIONS_MS: AutoStopPauseMs[] = [1000, 1500, 2000, 3000, 5000, 8000, 0];
 
 const DEFAULT_SETTINGS: DictationSettings = {
   autoStopPauseMs: SILENCE_TIMEOUT_MS as AutoStopPauseMs,
@@ -89,5 +90,6 @@ export function setAutoStopPauseMs(autoStopPauseMs: AutoStopPauseMs): DictationS
 }
 
 export function formatAutoStopDelayLabel(autoStopPauseMs: AutoStopPauseMs): string {
+  if (autoStopPauseMs === 0) return 'Never (stop with fn)';
   return `${(autoStopPauseMs / 1000).toFixed(1)}s`;
 }

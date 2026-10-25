@@ -53,6 +53,10 @@ test('Electron fuses block using the signed app as a generic Node runtime', () =
   });
 });
 
+test('the myvoice:// scheme is registered for Shortcuts and scripts', () => {
+  assert.deepEqual(builder.protocols, [{ name: 'MyVoice Control', schemes: ['myvoice'] }]);
+});
+
 test('package and lockfile agree on version 0.3.0', () => {
   assert.equal(json('package.json').version, '0.3.0');
   const lock = json('package-lock.json');

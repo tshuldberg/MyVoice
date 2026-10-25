@@ -2,11 +2,6 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import {
-  getFormattingSettings,
-  setFormattingMode,
-  type FormattingMode,
-} from './formatting-settings';
-import {
   AUTO_STOP_DELAY_OPTIONS_MS,
   getDictationSettings,
   setAutoStopPauseMs,
@@ -25,11 +20,11 @@ import * as native from './native-bridge';
 import { getPermissionSnapshot, requestAccessibility, requestMicrophone } from './permissions';
 import type { PermissionSnapshot } from './permission-state';
 import { getSetupSettings, setSetupCompleted } from './setup-settings';
+import { getFeatureState, registerFeatureHandlers, type FeatureState } from './app-features';
 
-export type AppSection = 'settings' | 'logs' | 'setup';
+export type AppSection = 'settings' | 'modes' | 'dictionary' | 'logs' | 'models' | 'setup';
 
 export interface AppStatePayload {
-  formatting: ReturnType<typeof getFormattingSettings>;
   dictation: ReturnType<typeof getDictationSettings>;
   visualization: ReturnType<typeof getVisualizationSettings>;
   hotkey: {
@@ -50,6 +45,7 @@ export interface AppStatePayload {
     permissions: PermissionSnapshot;
   };
   appVersion: string;
+  features: FeatureState;
 }
 
 interface ExportLogPayload {
@@ -61,7 +57,6 @@ interface ExportLogPayload {
 
 const IPC_CHANNELS = {
   APP_GET_STATE: 'app:get-state',
-  APP_SET_FORMATTING_MODE: 'app:set-formatting-mode',
   APP_SET_AUTO_STOP: 'app:set-auto-stop',
   APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
@@ -77,6 +72,7 @@ const IPC_CHANNELS = {
   APP_REQUEST_MICROPHONE: 'app:request-microphone',
   APP_REQUEST_ACCESSIBILITY: 'app:request-accessibility',
   APP_COMPLETE_SETUP: 'app:complete-setup',
+  APP_STATE_CHANGED: 'app:state-changed',
 } as const;
 
 let appWindow: BrowserWindow | null = null;
@@ -92,7 +88,6 @@ function getAppState(): AppStatePayload {
   const hotkey = getHotkeySettings();
   const hotkeyStatus = getTriggerShortcutStatus();
   return {
-    formatting: getFormattingSettings(),
     dictation: getDictationSettings(),
     visualization: getVisualizationSettings(),
     hotkey: {
@@ -113,6 +108,7 @@ function getAppState(): AppStatePayload {
       permissions: getPermissionSnapshot(),
     },
     appVersion: app.getVersion(),
+    features: getFeatureState(),
   };
 }
 
@@ -164,10 +160,6 @@ function registerHandlers(): void {
     fs.writeFileSync(result.filePath, output, 'utf8');
     return { ok: true, canceled: false, filePath: result.filePath };
   });
-  ipcMain.handle(IPC_CHANNELS.APP_SET_FORMATTING_MODE, (_event, mode: FormattingMode) => {
-    setFormattingMode(mode);
-    return getAppState();
-  });
   ipcMain.handle(IPC_CHANNELS.APP_SET_AUTO_STOP, (_event, pauseMs: AutoStopPauseMs) => {
     setAutoStopPauseMs(pauseMs);
     return getAppState();
@@ -204,6 +196,8 @@ function registerHandlers(): void {
     return getAppState();
   });
 
+  registerFeatureHandlers(getAppState, () => appWindow);
+
   handlersRegistered = true;
 }
 
@@ -227,6 +221,10 @@ export function createAppWindow(): BrowserWindow {
   });
 
   appWindow.loadFile(path.join(__dirname, '../../src/renderer/app.html'));
+
+  // A file dropped outside the drop zone must never replace the app's page.
+  appWindow.webContents.on('will-navigate', (event) => event.preventDefault());
+  appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   appWindow.webContents.on('did-finish-load', () => {
     if (!appWindow || appWindow.isDestroyed()) return;
@@ -258,4 +256,10 @@ export function broadcastLogUpdated(): void {
     entries: readTodayRecordingLog(),
     availableDates: listRecordingLogDates(),
   });
+}
+
+/** Tells the window to reload its state after a change made elsewhere (tray, URL). */
+export function broadcastAppState(): void {
+  if (!appWindow || appWindow.isDestroyed()) return;
+  appWindow.webContents.send(IPC_CHANNELS.APP_STATE_CHANGED);
 }

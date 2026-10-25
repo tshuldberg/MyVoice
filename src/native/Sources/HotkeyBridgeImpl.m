@@ -1,46 +1,43 @@
 #import "SwiftBridge.h"
 #import <AppKit/AppKit.h>
-#import <CoreGraphics/CoreGraphics.h>
+#import <Carbon/Carbon.h>
 
 @implementation HotkeyBridge
 
 static id globalMonitor;
-static NSDate *lastFnDownTime;
+static id localMonitor;
 static BOOL fnCurrentlyDown;
-static double doubleTapThreshold = 0.4; // 400ms
 
-+ (void)startMonitoringWithCallback:(void (^)(void))doubleTapCallback {
+// Reports raw fn transitions ("down", "up") and "other" when another key or
+// modifier is used while fn is held. Double-tap and hold-to-talk are decided in
+// TypeScript (src/main/fn-gesture.ts) so they can be unit tested.
++ (void)startFnEventsWithCallback:(void (^)(NSString *type, double timestampMs))callback {
     [self stopMonitoring];
-
-    lastFnDownTime = nil;
     fnCurrentlyDown = NO;
 
-    // Use NSEvent global monitor for flags changed events
-    globalMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:NSEventMaskFlagsChanged
-        handler:^(NSEvent * _Nonnull event) {
-
-        BOOL fnDown = (event.modifierFlags & NSEventModifierFlagFunction) != 0;
-
-        // Detect fn key transition: up -> down
-        if (fnDown && !fnCurrentlyDown) {
-            NSDate *now = [NSDate date];
-
-            if (lastFnDownTime) {
-                NSTimeInterval interval = [now timeIntervalSinceDate:lastFnDownTime];
-
-                if (interval < doubleTapThreshold) {
-                    // Double-tap detected!
-                    doubleTapCallback();
-                    lastFnDownTime = nil;
-                    fnCurrentlyDown = fnDown;
-                    return;
-                }
-            }
-
-            lastFnDownTime = now;
+    void (^handle)(NSEvent *) = ^(NSEvent *event) {
+        double now = [[NSDate date] timeIntervalSince1970] * 1000.0;
+        if (event.type == NSEventTypeKeyDown) {
+            if (fnCurrentlyDown) callback(@"other", now);
+            return;
         }
 
+        BOOL fnDown = (event.modifierFlags & NSEventModifierFlagFunction) != 0;
+        if (event.keyCode != kVK_Function) {
+            if (fnCurrentlyDown) callback(@"other", now);
+            return;
+        }
+        if (fnDown == fnCurrentlyDown) return;
         fnCurrentlyDown = fnDown;
+        callback(fnDown ? @"down" : @"up", now);
+    };
+
+    NSEventMask mask = NSEventMaskFlagsChanged | NSEventMaskKeyDown;
+    globalMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:mask handler:handle];
+    // Global monitors never see events sent to MyVoice's own windows.
+    localMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:mask handler:^NSEvent *(NSEvent *event) {
+        handle(event);
+        return event;
     }];
 
     if (!globalMonitor) {
@@ -53,7 +50,10 @@ static double doubleTapThreshold = 0.4; // 400ms
         [NSEvent removeMonitor:globalMonitor];
         globalMonitor = nil;
     }
-    lastFnDownTime = nil;
+    if (localMonitor) {
+        [NSEvent removeMonitor:localMonitor];
+        localMonitor = nil;
+    }
     fnCurrentlyDown = NO;
 }
 

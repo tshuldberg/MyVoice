@@ -6,7 +6,8 @@
         "Sources/addon.mm",
         "Sources/SpeechBridgeImpl.m",
         "Sources/HotkeyBridgeImpl.m",
-        "Sources/KeyboardBridgeImpl.m"
+        "Sources/KeyboardBridgeImpl.m",
+        "Sources/SystemBridgeImpl.m"
       ],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",

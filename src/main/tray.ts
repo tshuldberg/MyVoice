@@ -1,8 +1,6 @@
 import { Tray, Menu, nativeImage, app, shell } from 'electron';
-import {
-  getFormattingSettings,
-  setFormattingMode,
-} from './formatting-settings';
+import { getModesState, updateModesState } from './modes-settings';
+import { selectMode } from './modes';
 import {
   getVisualizationSettings,
   setWaveformSensitivity,
@@ -19,6 +17,7 @@ import {
 } from './dictation-settings';
 import { loadTrayIcon } from './icon';
 import { checkForUpdates } from './update-checker';
+import { broadcastAppState } from './app-window';
 
 let tray: Tray | null = null;
 let isRecording = false;
@@ -28,6 +27,9 @@ interface TrayActions {
   openSettings?: () => void;
   openTodayLog?: () => void;
   openSetup?: () => void;
+  openModes?: () => void;
+  openFileTranscription?: () => void;
+  pasteLast?: () => void;
 }
 
 let trayActions: TrayActions = {};
@@ -50,10 +52,10 @@ export function setRecordingState(recording: boolean): void {
   }
 }
 
-function updateTrayMenu(): void {
+export function updateTrayMenu(): void {
   if (!tray) return;
 
-  const formatting = getFormattingSettings();
+  const modes = getModesState();
   const visualization = getVisualizationSettings();
   const dictation = getDictationSettings();
   const audio = getAudioSettings();
@@ -77,9 +79,21 @@ function updateTrayMenu(): void {
       },
     },
     {
-      label: "Today's Log",
+      label: 'History',
       click: () => {
         trayActions.openTodayLog?.();
+      },
+    },
+    {
+      label: 'Paste Last Dictation',
+      click: () => {
+        trayActions.pasteLast?.();
+      },
+    },
+    {
+      label: 'Transcribe Audio File…',
+      click: () => {
+        trayActions.openFileTranscription?.();
       },
     },
     {
@@ -103,33 +117,23 @@ function updateTrayMenu(): void {
       },
     },
     {
-      label: 'Text Formatting',
+      label: 'Mode',
       submenu: [
-        {
-          label: 'Off (verbatim)',
-          type: 'radio',
-          checked: formatting.mode === 'off',
+        ...modes.modes.map((mode) => ({
+          label: mode.apps.length > 0 ? `${mode.name} (also used in ${mode.apps.length} app${mode.apps.length === 1 ? '' : 's'})` : mode.name,
+          type: 'radio' as const,
+          checked: modes.selectedModeId === mode.id,
           click: () => {
-            setFormattingMode('off');
+            updateModesState((state) => selectMode(state, mode.id));
             updateTrayMenu();
+            broadcastAppState();
           },
-        },
+        })),
+        { type: 'separator' as const },
         {
-          label: 'Basic (default)',
-          type: 'radio',
-          checked: formatting.mode === 'basic',
+          label: 'Edit Modes…',
           click: () => {
-            setFormattingMode('basic');
-            updateTrayMenu();
-          },
-        },
-        {
-          label: 'Structured (more paragraph/list formatting)',
-          type: 'radio',
-          checked: formatting.mode === 'structured',
-          click: () => {
-            setFormattingMode('structured');
-            updateTrayMenu();
+            trayActions.openModes?.();
           },
         },
       ],

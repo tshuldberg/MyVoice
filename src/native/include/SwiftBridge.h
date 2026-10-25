@@ -10,15 +10,16 @@
                       onAudioLevel:(void (^)(float level))levelCallback
                            onError:(void (^)(NSString *error))errorCallback;
 + (NSString *)stopAndSaveRecording;
++ (NSString *)snapshotRecordingToPath:(NSString *)path maxSeconds:(double)maxSeconds;
 + (void)stopRecognition;
 + (NSArray<NSDictionary *> *)listAudioInputDevices;
 + (BOOL)setAudioInputDeviceUID:(NSString *)deviceUID;
 + (void)clearAudioInputDevice;
 @end
 
-// Hotkey (fn double-tap) bridge
+// fn key events ("down", "up", "other"); gestures are decided in TypeScript
 @interface HotkeyBridge : NSObject
-+ (void)startMonitoringWithCallback:(void (^)(void))doubleTapCallback;
++ (void)startFnEventsWithCallback:(void (^)(NSString *type, double timestampMs))callback;
 + (void)stopMonitoring;
 @end
 
@@ -26,6 +27,18 @@
 @interface KeyboardBridge : NSObject
 + (void)typeText:(NSString *)text delayMs:(int)delay;
 + (void)pasteFromClipboard;
++ (void)pressReturn;
 + (BOOL)checkAccessibilityPermission;
 + (void)requestAccessibilityPermission;
+@end
+
+// Frontmost app, caret context, pasteboard and output volume
+@interface SystemBridge : NSObject
++ (NSDictionary *)frontmostApplication;
++ (NSDictionary *)focusedTextContext;
++ (NSInteger)pasteboardSave;
++ (NSInteger)pasteboardWriteText:(NSString *)text;
++ (BOOL)pasteboardRestoreIfUnchanged:(NSInteger)expectedChangeCount;
++ (float)outputVolume;
++ (BOOL)setOutputVolume:(float)volume;
 @end

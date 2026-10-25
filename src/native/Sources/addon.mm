@@ -82,6 +82,17 @@ Napi::Value RecordStop(const Napi::CallbackInfo& info) {
     return info.Env().Null();
 }
 
+Napi::Value RecordSnapshot(const Napi::CallbackInfo& info) {
+    std::string path = info[0].As<Napi::String>().Utf8Value();
+    double maxSeconds = info.Length() > 1 ? info[1].As<Napi::Number>().DoubleValue() : 0;
+    NSString *written = [SpeechBridge snapshotRecordingToPath:[NSString stringWithUTF8String:path.c_str()]
+                                                   maxSeconds:maxSeconds];
+    if (written) {
+        return Napi::String::New(info.Env(), [written UTF8String]);
+    }
+    return info.Env().Null();
+}
+
 Napi::Value SpeechStop(const Napi::CallbackInfo& info) {
     if (!recordingActive) {
         return info.Env().Undefined();
@@ -101,11 +112,14 @@ Napi::Value HotkeyStart(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     Napi::Function callback = info[0].As<Napi::Function>();
 
-    hotkeyTsfn = Napi::ThreadSafeFunction::New(env, callback, "HotkeyCallback", 0, 1);
+    [HotkeyBridge stopMonitoring];
+    if (hotkeyTsfn) hotkeyTsfn.Release();
+    hotkeyTsfn = Napi::ThreadSafeFunction::New(env, callback, "FnEventCallback", 0, 1);
 
-    [HotkeyBridge startMonitoringWithCallback:^{
-        hotkeyTsfn.NonBlockingCall([](Napi::Env env, Napi::Function cb) {
-            cb.Call({});
+    [HotkeyBridge startFnEventsWithCallback:^(NSString *type, double timestampMs) {
+        std::string eventType = [type UTF8String];
+        hotkeyTsfn.NonBlockingCall([eventType, timestampMs](Napi::Env env, Napi::Function cb) {
+            cb.Call({Napi::String::New(env, eventType), Napi::Number::New(env, timestampMs)});
         });
     }];
 
@@ -114,7 +128,10 @@ Napi::Value HotkeyStart(const Napi::CallbackInfo& info) {
 
 Napi::Value HotkeyStop(const Napi::CallbackInfo& info) {
     [HotkeyBridge stopMonitoring];
-    if (hotkeyTsfn) hotkeyTsfn.Release();
+    if (hotkeyTsfn) {
+        hotkeyTsfn.Release();
+        hotkeyTsfn = Napi::ThreadSafeFunction();
+    }
     return info.Env().Undefined();
 }
 
@@ -135,6 +152,11 @@ Napi::Value KeyboardType(const Napi::CallbackInfo& info) {
 
 Napi::Value KeyboardPaste(const Napi::CallbackInfo& info) {
     [KeyboardBridge pasteFromClipboard];
+    return info.Env().Undefined();
+}
+
+Napi::Value KeyboardPressReturn(const Napi::CallbackInfo& info) {
+    [KeyboardBridge pressReturn];
     return info.Env().Undefined();
 }
 
@@ -177,6 +199,55 @@ Napi::Value ClearAudioInputDevice(const Napi::CallbackInfo& info) {
     return info.Env().Undefined();
 }
 
+// --- System: frontmost app, caret context, pasteboard, volume ----------
+
+Napi::Value FrontmostApplication(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    NSDictionary *app = [SystemBridge frontmostApplication];
+    if (!app) return env.Null();
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("bundleId", Napi::String::New(env, [app[@"bundleId"] UTF8String]));
+    result.Set("name", Napi::String::New(env, [app[@"name"] UTF8String]));
+    result.Set("pid", Napi::Number::New(env, [app[@"pid"] intValue]));
+    return result;
+}
+
+Napi::Value FocusedTextContext(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    NSDictionary *context = [SystemBridge focusedTextContext];
+    if (!context) return env.Null();
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("secure", Napi::Boolean::New(env, [context[@"secure"] boolValue]));
+    result.Set("before", Napi::String::New(env, [context[@"before"] UTF8String]));
+    result.Set("atStart", Napi::Boolean::New(env, [context[@"atStart"] boolValue]));
+    result.Set("hasSelection", Napi::Boolean::New(env, [context[@"hasSelection"] boolValue]));
+    return result;
+}
+
+Napi::Value PasteboardSave(const Napi::CallbackInfo& info) {
+    return Napi::Number::New(info.Env(), (double)[SystemBridge pasteboardSave]);
+}
+
+Napi::Value PasteboardWriteText(const Napi::CallbackInfo& info) {
+    std::string text = info[0].As<Napi::String>().Utf8Value();
+    NSInteger changeCount = [SystemBridge pasteboardWriteText:[NSString stringWithUTF8String:text.c_str()]];
+    return Napi::Number::New(info.Env(), (double)changeCount);
+}
+
+Napi::Value PasteboardRestoreIfUnchanged(const Napi::CallbackInfo& info) {
+    NSInteger expected = (NSInteger)info[0].As<Napi::Number>().Int64Value();
+    return Napi::Boolean::New(info.Env(), [SystemBridge pasteboardRestoreIfUnchanged:expected]);
+}
+
+Napi::Value OutputVolume(const Napi::CallbackInfo& info) {
+    return Napi::Number::New(info.Env(), [SystemBridge outputVolume]);
+}
+
+Napi::Value SetOutputVolume(const Napi::CallbackInfo& info) {
+    float volume = info[0].As<Napi::Number>().FloatValue();
+    return Napi::Boolean::New(info.Env(), [SystemBridge setOutputVolume:volume]);
+}
+
 // --- Module Registration -----------------------------------------------
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -186,6 +257,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("recordStart", Napi::Function::New(env, RecordStart));
     exports.Set("recordStop", Napi::Function::New(env, RecordStop));
     exports.Set("speechStop", Napi::Function::New(env, SpeechStop));
+    exports.Set("recordSnapshot", Napi::Function::New(env, RecordSnapshot));
 
     // Hotkey
     exports.Set("hotkeyStart", Napi::Function::New(env, HotkeyStart));
@@ -199,8 +271,18 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     // Keyboard
     exports.Set("keyboardType", Napi::Function::New(env, KeyboardType));
     exports.Set("keyboardPaste", Napi::Function::New(env, KeyboardPaste));
+    exports.Set("keyboardPressReturn", Napi::Function::New(env, KeyboardPressReturn));
     exports.Set("keyboardCheckPermission", Napi::Function::New(env, KeyboardCheckPermission));
     exports.Set("keyboardRequestPermission", Napi::Function::New(env, KeyboardRequestPermission));
+
+    // System
+    exports.Set("frontmostApplication", Napi::Function::New(env, FrontmostApplication));
+    exports.Set("focusedTextContext", Napi::Function::New(env, FocusedTextContext));
+    exports.Set("pasteboardSave", Napi::Function::New(env, PasteboardSave));
+    exports.Set("pasteboardWriteText", Napi::Function::New(env, PasteboardWriteText));
+    exports.Set("pasteboardRestoreIfUnchanged", Napi::Function::New(env, PasteboardRestoreIfUnchanged));
+    exports.Set("outputVolume", Napi::Function::New(env, OutputVolume));
+    exports.Set("setOutputVolume", Napi::Function::New(env, SetOutputVolume));
 
     return exports;
 }

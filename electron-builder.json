@@ -1,6 +1,14 @@
 {
   "appId": "com.trey.myvoice",
   "productName": "MyVoice",
+  "protocols": [
+    {
+      "name": "MyVoice Control",
+      "schemes": [
+        "myvoice"
+      ]
+    }
+  ],
   "electronFuses": {
     "runAsNode": false,
     "enableCookieEncryption": true,
@@ -12,7 +20,14 @@
   },
   "mac": {
     "category": "public.app-category.productivity",
-    "target": [{ "target": "dmg", "arch": ["universal"] }],
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "universal"
+        ]
+      }
+    ],
     "icon": "icon.icns",
     "minimumSystemVersion": "13.0",
     "hardenedRuntime": true,
@@ -24,7 +39,13 @@
     }
   },
   "extraResources": [
-    { "from": "resources/bin", "to": "bin", "filter": ["whisper-cli"] }
+    {
+      "from": "resources/bin",
+      "to": "bin",
+      "filter": [
+        "whisper-cli"
+      ]
+    }
   ],
   "files": [
     "dist/**/*",

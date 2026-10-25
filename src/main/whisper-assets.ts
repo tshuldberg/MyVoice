@@ -4,6 +4,7 @@ import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import path from 'path';
+import { DEFAULT_MODEL_ID, getModel } from './model-catalog';
 
 // Kept free of Electron imports so the lookup and integrity rules can be unit tested with plain Node.
 
@@ -14,15 +15,8 @@ export interface ModelSpec {
   sizeBytes: number;
 }
 
-// Pinned to a Hugging Face commit so the bytes behind the URL cannot change under the hash.
-const MODEL_REPO_REVISION = '5359861c739e955e79d9a303bcbc70fb988958b1';
-
-export const BASE_EN_MODEL: ModelSpec = {
-  fileName: 'ggml-base.en.bin',
-  url: `https://huggingface.co/ggerganov/whisper.cpp/resolve/${MODEL_REPO_REVISION}/ggml-base.en.bin`,
-  sha256: 'a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002',
-  sizeBytes: 147_964_211,
-};
+/** The model downloaded at first launch. URLs are pinned to a commit in model-catalog.ts. */
+export const BASE_EN_MODEL: ModelSpec = getModel(DEFAULT_MODEL_ID) as ModelSpec;
 
 export interface WhisperCliLookup {
   isPackaged: boolean;
@@ -63,9 +57,14 @@ export function findExecutable(candidates: string[]): string | null {
  * Model locations, in order: the app's own folder, then the whisper.cpp cache
  * that MyVoice 0.2 used, so existing installs do not download again.
  */
+/** Where MyVoice keeps downloaded models. */
+export function modelPath(userDataDir: string, spec: Pick<ModelSpec, 'fileName'>): string {
+  return path.join(userDataDir, 'models', spec.fileName);
+}
+
 export function modelCandidates(userDataDir: string, homeDir: string, spec: ModelSpec = BASE_EN_MODEL): string[] {
   return [
-    path.join(userDataDir, 'models', spec.fileName),
+    modelPath(userDataDir, spec),
     path.join(homeDir, '.cache', 'whisper', spec.fileName),
   ];
 }
@@ -109,12 +108,13 @@ export async function downloadVerifiedFile(
   destPath: string,
   expected: Pick<ModelSpec, 'sha256' | 'sizeBytes'>,
   onProgress?: (receivedBytes: number, totalBytes: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   mkdirSync(path.dirname(destPath), { recursive: true });
   const tempPath = `${destPath}.download`;
   rmSync(tempPath, { force: true });
 
-  const response = await fetch(url, { redirect: 'follow' });
+  const response = await fetch(url, { redirect: 'follow', signal });
   if (!response.ok || !response.body) {
     throw new Error(`Download failed: HTTP ${response.status}`);
   }

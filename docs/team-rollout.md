@@ -8,21 +8,26 @@ This avoids showing the generic Electron icon and gives teammates a normal macOS
 
 ### 1) Build the DMG
 
+From the repository root (needs the Xcode Command Line Tools and cmake):
+
 ```bash
-cd /Users/trey/Desktop/Apps/MyVoice
-npm install
-npm run build
+npm ci
 npm run package
 ```
 
+`npm run package` builds the bundled whisper-cli, the universal native addon and the app,
+then writes an unsigned universal DMG. Gatekeeper blocks unsigned apps on other Macs, so for
+anyone outside your own machine use the signed release (`npm run release:check`, then
+`npm run release:mac`; see the README).
+
 Output DMG location (default):
 
-- `${TMPDIR}/myvoice-release/MyVoice-*.dmg`
+- `${TMPDIR}/myvoice-package/MyVoice-*.dmg`
 
 Optional custom output folder:
 
 ```bash
-MYVOICE_RELEASE_OUTPUT="$HOME/Desktop/myvoice-release" npm run package
+MYVOICE_RELEASE_OUTPUT="$HOME/Desktop/myvoice-package" npm run package
 ```
 
 ### 2) Share the DMG
@@ -34,9 +39,8 @@ Share `MyVoice-*.dmg` with coworkers using your normal internal channel (Drive, 
 1. Open `MyVoice-*.dmg`.
 2. Drag **MyVoice.app** to **Applications**.
 3. Launch **MyVoice** from Applications.
-4. On first launch, approve prompts for:
-   - Microphone
-   - Accessibility
+4. Confirm the one-time 148 MB speech model download.
+5. In the Setup window, allow **Microphone** and **Accessibility**, then try the practice field.
 
 ## Alternative path: run from source with Codex CLI
 
@@ -47,8 +51,9 @@ Use this only for technical teammates.
 ```bash
 git clone https://github.com/tshuldberg/MyVoice.git
 cd MyVoice
-npm install
-npm run start
+npm ci
+npm run build:whisper   # needs cmake; or skip and use a Homebrew whisper-cli while developing
+npm run dev
 ```
 
 ### 2) Required macOS permissions when launched from Terminal/Codex

@@ -2,9 +2,9 @@
 
 **Private dictation for Mac that never sends your voice to the cloud.**
 
-Double-tap `fn`, speak naturally, and your words appear where your cursor is.
+Double-tap `fn` (or hold it), speak naturally, and your words appear where your cursor is.
 
-[Download MyVoice for macOS](https://github.com/tshuldberg/MyVoice/releases) | [View Source on GitHub](https://github.com/tshuldberg/MyVoice)
+[Download MyVoice for macOS](https://github.com/tshuldberg/MyVoice/releases/latest) | [View Source on GitHub](https://github.com/tshuldberg/MyVoice)
 
 <a href="https://buymeacoffee.com/TreyTre"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-%E2%98%95-orange?style=flat-square" alt="Buy Me a Coffee"></a>
 
@@ -16,103 +16,103 @@ Most dictation tools force a tradeoff: convenience or privacy.
 
 Cloud-based products can be accurate, but they require trust, accounts, and often monthly fees. Built-in dictation can be limiting for people who dictate throughout the day.
 
-MyVoice gives you a simple dictation workflow without cloud transcription:
-
-- Start dictation with a double-tap of `fn`
-- Speak naturally while a lightweight overlay shows status
-- Auto-stop on silence and type directly into your focused text field
-
-No copy/paste workflow. No prompt writing. No extra editor.
+MyVoice runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp) on your Mac, so speech never leaves it.
 
 ---
 
-## How It Works
+## What it does
 
-1. **Double-tap `fn`** to start dictation.
-2. **Speak naturally** while MyVoice transcribes on-device with whisper.cpp.
-3. **Pause briefly** and MyVoice auto-stops and types into the focused app.
-   - You can adjust the auto-stop pause delay from the tray menu (`Auto-Stop Pause`).
-4. **Press `Escape`** anytime to cancel.
-
-Works in common text fields across macOS apps.
+- **Start the way you like.** Double-tap `fn` for hands-free dictation that stops when you pause, hold `fn` while you talk, or both. An extra shortcut of your own works too, and `Escape` cancels.
+- **See words as you speak.** The overlay shows a live preview while you dictate.
+- **Modes that switch by app.** A mode bundles the model, language, formatting, cleanup and how text is inserted. Assign apps to a mode and it switches on by itself: the built-in Verbatim mode keeps exact words in Terminal, iTerm, Ghostty and Warp.
+- **Spoken commands.** "new line", "new paragraph" and "scratch that" in every mode that has them on; optional spoken punctuation ("comma", "question mark", "open quote").
+- **Clean text.** Filler words and stutters are removed, sentences and lists are formatted, and text fits the cursor: a space after a word, lowercase mid-sentence.
+- **Your dictionary.** Vocabulary teaches MyVoice names and jargon and keeps their spelling. Replacements turn "my work email" into your address, and "at sign" or "dot com" into symbols. Import and export as CSV.
+- **History you can search.** Every dictation is saved on your Mac with its app, mode and length. Search all days, copy, reformat with another mode, or delete. Retention is up to you, from one day to forever, or no history at all.
+- **Transcribe files.** Drop an audio or video file (WAV, MP3, M4A, FLAC, Ogg, AIFF, MP4, MOV) on History.
+- **Models and languages.** Eight whisper models from Tiny to Large v3 Turbo, English-only or multilingual, with translation to English. Download, switch and delete them in Models.
+- **Delivery options.** Paste (your clipboard, including images, is restored afterward), type character by character for fields that block paste, or copy only. Optionally press Return after inserting, for chat apps.
+- **Paste the last dictation again** from the menu bar or a shortcut.
+- **Optional local AI cleanup.** Point MyVoice at a model server you run yourself (Ollama, LM Studio or llama.cpp's server) to polish text. Only addresses on your own Mac are accepted.
+- **Automation.** With "Allow other apps to control MyVoice" on, Shortcuts, Raycast or a script can open `myvoice://start`, `stop`, `toggle`, `cancel`, `paste-last` or `mode/<mode id>`.
 
 ---
 
 ## Privacy
 
-MyVoice is built for privacy-first dictation:
-
-- **No cloud transcription**. Speech recognition runs on-device with whisper.cpp.
-- **No account required**. No signup or login.
-- **No telemetry after setup**. No ongoing cloud dependency for normal dictation.
-- **Works offline** after one-time setup.
-
----
-
-## Key Benefits
-
-- **Keep your data local**: speech is transcribed on your Mac.
-- **Use it anywhere you type**: works in everyday macOS apps and editors.
-- **Pay nothing**: free forever, no subscription tiers.
-- **Inspect the code**: open source under MIT.
+- **Speech stays on your Mac.** Transcription runs locally. Each recording is deleted as soon as it is transcribed.
+- **No account, no telemetry.**
+- **The network is used only for:**
+  - downloading speech models from Hugging Face (the first one at first launch, after you confirm), each checked against its published SHA-256;
+  - "Check for Updates…", which asks GitHub for the latest release, only when you click it;
+  - local AI cleanup, if you turn it on, which talks only to a server on your own Mac.
+- **History** is plain text in `~/Library/Application Support/MyVoice/recording-logs`. Turn it off or limit it in Settings > Privacy.
 
 ---
 
 ## Install
 
-1. Download `MyVoice.dmg` from [Releases](https://github.com/tshuldberg/MyVoice/releases).
-2. Open the `.dmg` and drag **MyVoice** to your Applications folder.
-3. Launch MyVoice. On first launch, MyVoice will:
-   - Install `whisper-cpp` via Homebrew (if missing)
-   - Download the speech model (~148MB, one-time)
-4. Grant both required macOS permissions when prompted:
-   - **Microphone**
-   - **Accessibility**
+1. Download `MyVoice.dmg` from the [latest release](https://github.com/tshuldberg/MyVoice/releases/latest).
+2. Open the DMG and drag **MyVoice** to **Applications**.
+3. Open MyVoice. Confirm the one-time speech model download (148 MB).
+4. The Setup window asks for two macOS permissions:
+   - **Microphone**, to hear you while you dictate.
+   - **Accessibility**, to notice the `fn` key and paste at your cursor.
+5. Click in the practice box, double-tap `fn`, say a sentence, and pause.
 
-> [Homebrew](https://brew.sh) is required. If missing, MyVoice will offer to open the install page on first launch.
+**If `fn` opens the emoji picker or Apple Dictation:** open System Settings > Keyboard, set "Press 🌐 key to" to "Do Nothing", and give Dictation a shortcut other than pressing `fn` twice. Or set your own MyVoice shortcut in Settings.
 
-For internal team deployment (DMG distribution and Codex CLI setup), see `docs/team-rollout.md`.
+**If text stops appearing after an update:** open System Settings > Privacy & Security > Accessibility, select MyVoice, remove it with the minus button, and add it again.
 
----
+## Updates
+
+Choose **Check for Updates…** in the menu bar menu. When a new version is out, download it, quit MyVoice and drag the new copy into Applications. Settings, modes, dictionary and history stay.
 
 ## Requirements
 
-- macOS 13 (Ventura) or later
-- Apple Silicon or Intel Mac
-- [Homebrew](https://brew.sh) (for whisper-cpp installation)
-- Microphone (built-in or external)
-- ~300MB disk space (app + whisper model)
-- Release artifacts are architecture-specific (`arm64` when built on Apple Silicon, `x64` when built on Intel)
+- macOS 13 (Ventura) or later, on Apple silicon or Intel (one universal download)
+- A microphone
+- About 400 MB of disk space with the default model; more for larger models
 
 ---
 
 ## Building From Source
 
+You need Node.js 22, the Xcode Command Line Tools and [cmake](https://cmake.org) (`brew install cmake` or `pipx install cmake`).
+
 ```bash
 git clone https://github.com/tshuldberg/MyVoice.git
 cd MyVoice
-npm install
-npm run build:native    # Compile native addon (requires Xcode CLI tools)
-npm run dev             # Launch in development mode
+npm ci
+npm run build:whisper   # builds whisper-cli v1.9.5 (pinned commit) into resources/bin/
+npm run dev             # builds the native addon and TypeScript, then starts MyVoice
+npm test
 ```
 
-To package a distributable `.dmg`:
+`npm run build:native:host` builds the addon for this Mac only, which is faster while developing.
+
+To package an unsigned universal DMG for testing on your own Mac:
 
 ```bash
-npm run build
 npm run package
 ```
 
-By default, `npm run package` writes output to `${TMPDIR}/myvoice-release` (outside Desktop/iCloud-managed paths) to avoid macOS metadata issues during code signing.
+### Releasing (signed and notarized)
 
-For public release (Developer ID signed + notarized):
+Once per Mac, with a Developer ID Application certificate in the login keychain, store notarization credentials under a keychain profile (the default name is `myvoice`):
 
 ```bash
-export APPLE_API_KEY=/absolute/path/AuthKey_XXXXXX.p8
-export APPLE_API_KEY_ID=XXXXXX
-export APPLE_API_ISSUER=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-npm run release:mac
+xcrun notarytool store-credentials myvoice --apple-id <Apple ID> --team-id <Team ID>
 ```
+
+Then:
+
+```bash
+npm run release:check   # reports anything missing; builds nothing
+npm run release:mac     # build, sign, notarize, staple, verify, MyVoice.dmg + SHA-256
+```
+
+The release script never uploads anything. Attach `MyVoice.dmg` and `MyVoice.dmg.sha256` to a GitHub release yourself.
 
 ---
 

@@ -48,7 +48,7 @@
         <div class="cta-row">
           <a
             class="btn btn-primary"
-            href="https://github.com/tshuldberg/MyVoice/releases"
+            href="https://github.com/tshuldberg/MyVoice/releases/latest"
             target="_blank"
             rel="noreferrer"
           >
@@ -77,10 +77,27 @@
         <article class="card">
           <h2>How it works</h2>
           <ol>
-            <li>Double-tap <code>fn</code>.</li>
-            <li>Speak naturally into your mic.</li>
-            <li>Pause and text appears in the active app.</li>
+            <li>Double-tap <code>fn</code>, or hold it while you talk.</li>
+            <li>Speak naturally. Words appear in the overlay as you go.</li>
+            <li>Pause or let go, and the text lands at your cursor.</li>
           </ol>
+        </article>
+        <article class="card">
+          <h2>Built for real work</h2>
+          <ul>
+            <li>Modes that switch by app: verbatim in Terminal, structured notes in Notes.</li>
+            <li>A personal dictionary for names and jargon, plus replacements like "my email".</li>
+            <li>Spoken commands: "new line", "new paragraph", "scratch that".</li>
+            <li>Searchable history, audio file transcription and eight downloadable models.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2>Private by design</h2>
+          <ul>
+            <li>Speech is turned into text on your Mac; recordings are deleted right after.</li>
+            <li>The only downloads are the speech models, each checked against its published checksum.</li>
+            <li>Update checks happen only when you ask. Optional AI cleanup only talks to a model running on your own Mac.</li>
+          </ul>
         </article>
       </section>
 
@@ -101,20 +118,7 @@
           >
             <span class="donation-title">Buy Me a Coffee</span>
           </a>
-          <a
-            id="venmo-link"
-            class="donation"
-            href="https://venmo.com/u/YOUR_VENMO_HANDLE"
-            target="_blank"
-            rel="noreferrer"
-            data-channel="venmo"
-          >
-            <span class="donation-title">Venmo</span>
-          </a>
         </div>
-        <p id="venmo-note" class="note">
-          Replace <code>YOUR_VENMO_HANDLE</code> in <code>website/index.html</code> before launch.
-        </p>
       </section>
     </main>
 
@@ -128,11 +132,6 @@
           });
         }
 
-        const venmoLink = document.getElementById('venmo-link');
-        const venmoNote = document.getElementById('venmo-note');
-        if (venmoLink && venmoLink.href.includes('YOUR_VENMO_HANDLE') && venmoNote) {
-          venmoNote.classList.add('visible');
-        }
       })();
     </script>
   </body>

@@ -1,74 +1,29 @@
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import { execFile } from 'child_process';
-import { accessSync, mkdirSync, statSync, renameSync, createWriteStream, unlinkSync, constants } from 'fs';
-import { get as httpsGet } from 'https';
+import { rmSync, writeFileSync } from 'fs';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from '../shared/types';
+import {
+  BASE_EN_MODEL,
+  ModelIntegrityError,
+  downloadVerifiedFile,
+  findExecutable,
+  findValidModel,
+  formatMegabytes,
+  modelCandidates,
+  whisperCliCandidates,
+} from './whisper-assets';
+import { silentWav } from './wav';
 
 export interface WhisperPaths {
   whisperCli: string;
   whisperModel: string;
 }
 
-const MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin';
-const MODEL_DIR = path.join(os.homedir(), '.cache', 'whisper');
-const MODEL_FILE = 'ggml-base.en.bin';
-const MODEL_PATH = path.join(MODEL_DIR, MODEL_FILE);
-const MODEL_MIN_SIZE = 100 * 1024 * 1024; // 100MB — catch partial downloads
+const RELEASES_URL = 'https://github.com/tshuldberg/MyVoice/releases/latest';
 
 let setupWindow: BrowserWindow | null = null;
-
-// --- Whisper CLI probe ---
-
-function probeWhisperCli(): string | null {
-  const candidates = [
-    '/opt/homebrew/bin/whisper-cli',  // ARM (Apple Silicon)
-    '/usr/local/bin/whisper-cli',     // Intel
-  ];
-
-  for (const p of candidates) {
-    try {
-      accessSync(p, constants.X_OK);
-      return p;
-    } catch {
-      // not found, try next
-    }
-  }
-
-  // Fallback: which
-  try {
-    const { execFileSync } = require('child_process');
-    const result = execFileSync('which', ['whisper-cli'], { encoding: 'utf8', timeout: 5000 }).trim();
-    if (result) {
-      accessSync(result, constants.X_OK);
-      return result;
-    }
-  } catch {
-    // not found
-  }
-
-  return null;
-}
-
-// --- Homebrew probe ---
-
-function probeHomebrew(): string | null {
-  const candidates = [
-    '/opt/homebrew/bin/brew',
-    '/usr/local/bin/brew',
-  ];
-
-  for (const p of candidates) {
-    try {
-      accessSync(p, constants.X_OK);
-      return p;
-    } catch {
-      // not found
-    }
-  }
-  return null;
-}
 
 // --- Setup progress window ---
 
@@ -119,171 +74,147 @@ function closeSetupWindow(): void {
   }
 }
 
-// --- Install whisper-cpp via Homebrew ---
-
-function installWhisperCli(brewPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    sendProgress('Installing whisper-cpp via Homebrew…', -1);
-
-    execFile(brewPath, ['install', 'whisper-cpp'], { timeout: 5 * 60 * 1000 }, (error, _stdout, stderr) => {
-      if (error) {
-        reject(new Error(`brew install failed: ${error.message}\n${stderr}`));
-        return;
-      }
-      resolve();
-    });
-  });
+function quitSetup(reason: string): never {
+  closeSetupWindow();
+  app.quit();
+  throw new Error(reason);
 }
 
-// --- Download model ---
+// --- Bundled whisper-cli ---
 
-function downloadModel(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    mkdirSync(MODEL_DIR, { recursive: true });
+function resolveWhisperCli(): string {
+  const whisperCli = findExecutable(whisperCliCandidates({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appRoot: app.getAppPath(),
+  }));
+  if (whisperCli) return whisperCli;
 
-    const tempPath = MODEL_PATH + '.download';
-
-    // Clean up any prior partial download
-    try { unlinkSync(tempPath); } catch { /* no-op */ }
-
-    sendProgress('Downloading speech model…', 0);
-
-    const request = httpsGet(MODEL_URL, (response) => {
-      // Follow redirects (Hugging Face uses them)
-      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        request.destroy();
-        httpsGet(response.headers.location, (redirected) => {
-          handleDownloadResponse(redirected, tempPath, resolve, reject);
-        }).on('error', reject);
-        return;
-      }
-
-      handleDownloadResponse(response, tempPath, resolve, reject);
+  if (app.isPackaged) {
+    const choice = dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'MyVoice Setup',
+      message: 'MyVoice is missing its speech engine.',
+      detail: 'This copy of MyVoice looks incomplete. Download the latest release and drag it to Applications again.',
+      buttons: ['Open Download Page', 'Quit'],
+      defaultId: 0,
     });
-
-    request.on('error', reject);
-  });
+    if (choice === 0) shell.openExternal(RELEASES_URL);
+  } else {
+    dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'MyVoice Setup',
+      message: 'whisper-cli not found.',
+      detail: 'Run "npm run build:whisper" to build the bundled speech engine, then start MyVoice again.',
+      buttons: ['Quit'],
+    });
+  }
+  return quitSetup('whisper-cli not found');
 }
 
-function handleDownloadResponse(
-  response: import('http').IncomingMessage,
-  tempPath: string,
-  resolve: () => void,
-  reject: (err: Error) => void
-): void {
-  if (response.statusCode !== 200) {
-    reject(new Error(`Download failed: HTTP ${response.statusCode}`));
-    return;
+// --- Speech model ---
+
+function confirmModelDownload(): boolean {
+  const size = formatMegabytes(BASE_EN_MODEL.sizeBytes);
+  const choice = dialog.showMessageBoxSync({
+    type: 'info',
+    title: 'MyVoice Setup',
+    message: `Download the speech model (${size})?`,
+    detail: 'MyVoice turns speech into text on this Mac with the Whisper base.en model. '
+      + `It is a one-time ${size} download from Hugging Face. After that, dictation works offline `
+      + 'and your voice never leaves your Mac.',
+    buttons: [`Download ${size}`, 'Quit'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  return choice === 0;
+}
+
+async function downloadModelWithProgress(destPath: string): Promise<void> {
+  const totalMb = formatMegabytes(BASE_EN_MODEL.sizeBytes);
+  let lastPercent = -1;
+  sendProgress(`Downloading speech model… 0 of ${totalMb}`, 0);
+
+  await downloadVerifiedFile(BASE_EN_MODEL.url, destPath, BASE_EN_MODEL, (received, total) => {
+    const percent = Math.floor((received / total) * 100);
+    if (percent === lastPercent) return;
+    lastPercent = percent;
+    sendProgress(`Downloading speech model… ${formatMegabytes(received)} of ${totalMb}`, percent);
+  });
+
+  sendProgress('Checking speech model…', 100);
+}
+
+function askToRetryDownload(error: unknown): boolean {
+  const detail = error instanceof ModelIntegrityError
+    ? `${error.message} The partial file was deleted.`
+    : 'Check your internet connection and try again.';
+  const choice = dialog.showMessageBoxSync({
+    type: 'error',
+    title: 'MyVoice Setup',
+    message: 'The speech model could not be downloaded.',
+    detail,
+    buttons: ['Try Again', 'Quit'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  return choice === 0;
+}
+
+async function ensureModel(): Promise<string> {
+  const candidates = modelCandidates(app.getPath('userData'), os.homedir());
+  const existing = await findValidModel(candidates);
+  if (existing) return existing;
+
+  if (!confirmModelDownload()) {
+    return quitSetup('Model download declined');
   }
 
-  const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
-  let downloaded = 0;
-
-  const file = createWriteStream(tempPath);
-
-  response.on('data', (chunk: Buffer) => {
-    downloaded += chunk.length;
-    if (totalBytes > 0) {
-      const percent = Math.round((downloaded / totalBytes) * 100);
-      const mb = (downloaded / 1024 / 1024).toFixed(0);
-      const totalMb = (totalBytes / 1024 / 1024).toFixed(0);
-      sendProgress(`Downloading speech model… ${mb}/${totalMb} MB`, percent);
-    }
-  });
-
-  response.pipe(file);
-
-  file.on('finish', () => {
-    file.close(() => {
-      try {
-        renameSync(tempPath, MODEL_PATH);
-        resolve();
-      } catch (err) {
-        reject(err as Error);
+  const destPath = candidates[0];
+  showSetupWindow();
+  for (;;) {
+    try {
+      await downloadModelWithProgress(destPath);
+      return destPath;
+    } catch (error) {
+      console.error('[MyVoice] Model download failed:', error);
+      if (!askToRetryDownload(error)) {
+        return quitSetup('Model download failed');
       }
-    });
-  });
-
-  file.on('error', (err) => {
-    try { unlinkSync(tempPath); } catch { /* no-op */ }
-    reject(err);
-  });
-}
-
-// --- Model probe ---
-
-function probeModel(): boolean {
-  try {
-    const stat = statSync(MODEL_PATH);
-    return stat.size > MODEL_MIN_SIZE;
-  } catch {
-    return false;
+    }
   }
 }
 
 // --- Main entry point ---
 
 export async function ensureWhisperReady(): Promise<WhisperPaths> {
-  // 1. Probe whisper-cli
-  let whisperCli = probeWhisperCli();
-
-  if (!whisperCli) {
-    // Need to install — check for Homebrew first
-    const brewPath = probeHomebrew();
-
-    if (!brewPath) {
-      const choice = dialog.showMessageBoxSync({
-        type: 'info',
-        title: 'MyVoice Setup',
-        message: 'MyVoice requires Homebrew to install whisper-cpp.\n\nPlease install Homebrew first, then relaunch MyVoice.',
-        buttons: ['Open brew.sh', 'Quit'],
-        defaultId: 0,
-      });
-
-      if (choice === 0) {
-        const { shell } = require('electron');
-        shell.openExternal('https://brew.sh');
-      }
-      app.quit();
-      throw new Error('Homebrew not found');
-    }
-
-    // Show setup window and install
-    showSetupWindow();
-    await installWhisperCli(brewPath);
-
-    // Re-probe after install
-    whisperCli = probeWhisperCli();
-    if (!whisperCli) {
-      dialog.showMessageBoxSync({
-        type: 'error',
-        title: 'MyVoice Setup',
-        message: 'whisper-cpp installed but whisper-cli not found.\n\nPlease check your Homebrew installation and try again.',
-        buttons: ['Quit'],
-      });
-      app.quit();
-      throw new Error('whisper-cli not found after install');
-    }
-  }
-
-  // 2. Probe model
-  if (!probeModel()) {
-    if (!setupWindow) showSetupWindow();
-    await downloadModel();
-
-    if (!probeModel()) {
-      dialog.showMessageBoxSync({
-        type: 'error',
-        title: 'MyVoice Setup',
-        message: 'Model download failed. Please check your internet connection and try again.',
-        buttons: ['Quit'],
-      });
-      app.quit();
-      throw new Error('Model download failed');
-    }
-  }
-
+  const whisperCli = resolveWhisperCli();
+  const whisperModel = await ensureModel();
   closeSetupWindow();
+  return { whisperCli, whisperModel };
+}
 
-  return { whisperCli, whisperModel: MODEL_PATH };
+/**
+ * Runs one transcription of a short silent clip in the background. The first
+ * run after install compiles whisper.cpp's Metal shaders (about 10 seconds on
+ * an M-series Mac); doing it here keeps that delay out of the first dictation.
+ */
+export function warmUpWhisper(paths: WhisperPaths): void {
+  const clipPath = path.join(app.getPath('temp'), 'myvoice-warmup.wav');
+  writeFileSync(clipPath, silentWav(500));
+  const startedAt = Date.now();
+
+  execFile(
+    paths.whisperCli,
+    ['-m', paths.whisperModel, '--no-timestamps', '-l', 'en', '-f', clipPath],
+    { timeout: 120000 },
+    (error) => {
+      rmSync(clipPath, { force: true });
+      if (error) {
+        console.error('[MyVoice] Speech engine warm-up failed:', error.message);
+        return;
+      }
+      console.log(`[MyVoice] Speech engine ready in ${Date.now() - startedAt} ms`);
+    }
+  );
 }

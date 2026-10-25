@@ -44,3 +44,4 @@ npm-debug.log*
 
 # Worktree state
 .cmux/
+resources/bin/

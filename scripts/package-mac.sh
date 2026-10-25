@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Build an unsigned, universal MyVoice.dmg for local testing. Gatekeeper will
+# block it on other Macs; use scripts/release-mac.sh for anything you share.
 set -euo pipefail
 
 if [[ "${OSTYPE:-}" != darwin* ]]; then
@@ -6,24 +8,23 @@ if [[ "${OSTYPE:-}" != darwin* ]]; then
   exit 1
 fi
 
-if [[ -n "${MYVOICE_CODESIGN_ID:-}" ]]; then
-  if ! security find-identity -v -p codesigning | grep -q "$MYVOICE_CODESIGN_ID"; then
-    echo "[MyVoice] Signing identity hash not found: $MYVOICE_CODESIGN_ID" >&2
-    exit 1
-  fi
-  export CSC_NAME="$MYVOICE_CODESIGN_ID"
-  echo "[MyVoice] Using signing identity: $MYVOICE_CODESIGN_ID"
-fi
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
 
-default_output="${TMPDIR:-/tmp}myvoice-release"
-output_dir="${MYVOICE_RELEASE_OUTPUT:-$default_output}"
-
+tmp_root="${TMPDIR:-/tmp}"
+output_dir="${MYVOICE_RELEASE_OUTPUT:-${tmp_root%/}/myvoice-package}"
 mkdir -p "$output_dir"
 
-echo "[MyVoice] Packaging macOS app"
-echo "[MyVoice] Output directory: $output_dir"
+echo "[MyVoice] Building whisper-cli, native addon and TypeScript"
+bash scripts/build-whisper.sh
+bash scripts/build-native.sh
+npx tsc
 
-electron-builder --mac --config.directories.output="$output_dir"
+echo "[MyVoice] Packaging unsigned universal app into $output_dir"
+CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --universal \
+  -c.mac.identity=null \
+  -c.mac.notarize=false \
+  -c.directories.output="$output_dir"
 
 echo "[MyVoice] Build complete"
 find "$output_dir" -maxdepth 1 -name '*.dmg' -print

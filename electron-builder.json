@@ -1,22 +1,35 @@
 {
   "appId": "com.trey.myvoice",
   "productName": "MyVoice",
+  "electronFuses": {
+    "runAsNode": false,
+    "enableCookieEncryption": true,
+    "enableNodeOptionsEnvironmentVariable": false,
+    "enableNodeCliInspectArguments": false,
+    "enableEmbeddedAsarIntegrityValidation": true,
+    "onlyLoadAppFromAsar": true,
+    "resetAdHocDarwinSignature": true
+  },
   "mac": {
     "category": "public.app-category.productivity",
-    "target": ["dmg"],
+    "target": [{ "target": "dmg", "arch": ["universal"] }],
     "icon": "icon.icns",
+    "minimumSystemVersion": "13.0",
     "hardenedRuntime": true,
+    "notarize": false,
     "entitlements": "entitlements.plist",
-    "entitlementsInherit": "entitlements.plist",
+    "entitlementsInherit": "entitlements.inherit.plist",
     "extendInfo": {
-      "NSMicrophoneUsageDescription": "MyVoice needs microphone access to transcribe your speech.",
-      "NSSpeechRecognitionUsageDescription": "MyVoice uses on-device speech recognition to convert your voice to text."
+      "NSMicrophoneUsageDescription": "MyVoice listens only while you dictate, after you double-tap fn or press your shortcut. Your speech is turned into text on this Mac."
     }
   },
+  "extraResources": [
+    { "from": "resources/bin", "to": "bin", "filter": ["whisper-cli"] }
+  ],
   "files": [
     "dist/**/*",
     "src/renderer/**/*",
-    "src/native/build/**/*.node",
+    "src/native/build/Release/myvoice_native.node",
     "assets/**/*",
     "icon.png",
     "icon.icns"

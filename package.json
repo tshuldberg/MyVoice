@@ -1,11 +1,13 @@
 {
   "name": "myvoice",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Privacy-first macOS dictation app. Double-tap fn to dictate anywhere.",
   "main": "dist/main/index.js",
   "scripts": {
     "build:ts": "tsc",
-    "build:native": "cd src/native && node-gyp rebuild --runtime=electron --target=$(node -e \"console.log(require('electron/package.json').version)\") --dist-url=https://electronjs.org/headers",
+    "build:whisper": "bash scripts/build-whisper.sh",
+    "build:native": "bash scripts/build-native.sh",
+    "build:native:host": "bash scripts/build-native.sh --host",
     "build:native:system": "cd src/native && node-gyp rebuild",
     "build": "npm run build:native && npm run build:ts",
     "rebuild": "npm run build:native",
@@ -13,6 +15,7 @@
     "start": "electron .",
     "package": "scripts/package-mac.sh",
     "release:mac": "scripts/release-mac.sh",
+    "release:check": "scripts/release-mac.sh --check",
     "postinstall": "bash scripts/patch-electron-name.sh",
     "test": "npm run build:ts && node --test tests/*.test.mjs"
   },

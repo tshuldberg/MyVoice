@@ -255,42 +255,211 @@
     }
 
     .setup-actions .hint { margin-top: 0; }
+
+    .tab-btn:focus-visible,
+    .btn:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .btn.danger { color: #b3261e; }
+    .btn.small { padding: 5px 9px; font-size: 13px; }
+
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .stack { display: grid; gap: 12px; }
+    .field-label { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+    .check-list { display: grid; gap: 8px; margin-top: 4px; }
+    .check-list label { display: flex; gap: 8px; align-items: flex-start; color: var(--text); margin: 0; }
+    .check-list .hint { margin: 2px 0 0; }
+
+    .modes-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: start; }
+    .mode-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    .mode-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      padding: 10px 12px;
+      cursor: pointer;
+      color: var(--text);
+      font: inherit;
+    }
+    .mode-item.editing { border-color: var(--accent); }
+    .mode-item .meta { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: #e7f0fb;
+      color: var(--accent);
+      margin-left: 6px;
+    }
+    .badge.muted { background: #eef1f5; color: var(--muted); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 6px 4px 10px;
+      background: #fbfdff;
+      font-size: 13px;
+    }
+    .chip button {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .chip.add { padding: 4px 10px; cursor: pointer; color: var(--accent); }
+
+    .rule-list, .model-list, .history-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+    .rule-list li, .model-list li {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fbfdff;
+    }
+    .rule-from { font-weight: 600; }
+    .rule-to { white-space: pre-wrap; flex: 1; color: var(--muted); }
+    .model-main { flex: 1; display: grid; gap: 3px; }
+    .model-main .hint { margin: 0; }
+
+    .history-list li {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: #fbfdff;
+      display: grid;
+      gap: 6px;
+    }
+    .entry-meta { font-size: 12px; color: var(--muted); }
+    .entry-text { white-space: pre-wrap; }
+    .entry-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .entry-actions select { width: auto; padding: 5px; font-size: 13px; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .stat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fbfdff; }
+    .stat strong { display: block; font-size: 20px; }
+    .stat span { font-size: 12px; color: var(--muted); }
+
+    .drop-zone {
+      border: 2px dashed var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .drop-zone.over { border-color: var(--accent); color: var(--accent); }
+    progress.file-progress { width: 100%; max-width: 420px; }
+
+    @media (max-width: 760px) {
+      .modes-layout { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <main class="shell">
     <h1>MyVoice</h1>
-    <p class="sub">Desktop settings and recording history</p>
+    <p class="sub">Private dictation that runs on this Mac</p>
 
-    <div class="tabs">
-      <button class="tab-btn active" id="tab-settings" type="button">Settings</button>
-      <button class="tab-btn" id="tab-logs" type="button">Today's Log</button>
-      <button class="tab-btn" id="tab-setup" type="button">Setup</button>
-    </div>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab-btn active" type="button" data-view="settings">Settings</button>
+      <button class="tab-btn" type="button" data-view="modes">Modes</button>
+      <button class="tab-btn" type="button" data-view="dictionary">Dictionary</button>
+      <button class="tab-btn" type="button" data-view="logs">History</button>
+      <button class="tab-btn" type="button" data-view="models">Models</button>
+      <button class="tab-btn" type="button" data-view="setup">Setup</button>
+    </nav>
 
-    <section id="view-settings">
+    <!-- Settings -->
+    <section id="view-settings" data-view="settings">
       <div class="card">
-        <h2>Text Formatting</h2>
-        <label for="formatting-mode">Formatting mode</label>
-        <select id="formatting-mode">
-          <option value="off">Off (verbatim)</option>
-          <option value="basic">Basic (default)</option>
-          <option value="structured">Structured</option>
-        </select>
-      </div>
-
-      <div class="card">
-        <h2>Dictation</h2>
-        <label for="auto-stop">Auto-stop pause</label>
-        <select id="auto-stop"></select>
+        <h2>Starting and stopping</h2>
+        <div class="grid-2">
+          <div>
+            <label for="trigger-style">fn key</label>
+            <select id="trigger-style">
+              <option value="double-tap">Double-tap fn to start and stop</option>
+              <option value="hold">Hold fn while you talk</option>
+              <option value="both">Both: double-tap, or hold while you talk</option>
+            </select>
+          </div>
+          <div>
+            <label for="auto-stop">Stop after a pause of</label>
+            <select id="auto-stop"></select>
+            <p class="hint">Holding fn always stops when you let go.</p>
+          </div>
+          <div>
+            <label for="max-recording">Longest recording</label>
+            <select id="max-recording"></select>
+          </div>
+        </div>
         <div style="margin-top: 14px;">
-          <label for="trigger-shortcut">Custom trigger shortcut (optional)</label>
+          <label for="trigger-shortcut">Extra shortcut that starts and stops dictation (optional)</label>
           <div class="shortcut-row">
             <input id="trigger-shortcut" type="text" placeholder="Example: CommandOrControl+Shift+Space">
             <button id="save-trigger-shortcut" class="btn" type="button">Save Shortcut</button>
             <button id="clear-trigger-shortcut" class="btn" type="button">Clear</button>
           </div>
           <p id="trigger-shortcut-status" class="hint">Default trigger remains double-tap fn.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Inserting text</h2>
+        <div class="check-list">
+          <label><input id="smart-spacing" type="checkbox"> <span>Fit the text to the cursor: add a space after a word, and start in lowercase mid-sentence</span></label>
+        </div>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div>
+            <label for="clipboard-behavior">Clipboard after pasting</label>
+            <select id="clipboard-behavior">
+              <option value="restore">Put back what I had copied</option>
+              <option value="keep">Keep the dictation on the clipboard</option>
+            </select>
+          </div>
+          <div>
+            <label for="paste-last-shortcut">Shortcut to paste the last dictation again (optional)</label>
+            <div class="shortcut-row">
+              <input id="paste-last-shortcut" type="text" placeholder="Example: CommandOrControl+Alt+V">
+              <button id="save-paste-last-shortcut" class="btn" type="button">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>While recording</h2>
+        <div class="check-list">
+          <label><input id="live-preview" type="checkbox"> <span>Show words in the overlay as you speak</span></label>
+          <label><input id="sounds" type="checkbox"> <span>Play a sound when recording starts and when text is inserted</span></label>
+        </div>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div>
+            <label for="ducking">Other audio</label>
+            <select id="ducking">
+              <option value="off">Leave it alone</option>
+              <option value="lower">Turn it down while I dictate</option>
+              <option value="mute">Mute it while I dictate</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -314,29 +483,223 @@
           <label for="waveform-debug">Show waveform debug overlay</label>
         </div>
       </div>
+
+      <div class="card">
+        <h2>Privacy</h2>
+        <div class="grid-2">
+          <div>
+            <label for="history-retention">Keep dictation history</label>
+            <select id="history-retention"></select>
+            <p class="hint">History stays on this Mac. Recordings are deleted as soon as they are transcribed.</p>
+          </div>
+          <div>
+            <p class="field-label">History</p>
+            <button id="clear-history" class="btn danger" type="button">Delete All History…</button>
+          </div>
+        </div>
+        <div class="check-list" style="margin-top: 12px;">
+          <label><input id="allow-url-control" type="checkbox">
+            <span>Allow other apps and Shortcuts to control MyVoice with myvoice:// links
+              <span class="hint" style="display: block;">Links: myvoice://start, stop, toggle, cancel, paste-last, mode/&lt;mode&gt;. Off by default, because any web page can open a link.</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Local AI cleanup (advanced)</h2>
+        <p class="hint">Polish text with a model server you run on this Mac, such as Ollama or LM Studio. Only addresses on this Mac are accepted, and the text is never sent anywhere else. Turn it on per mode in Modes.</p>
+        <div class="check-list">
+          <label><input id="ai-enabled" type="checkbox"> <span>Use my local model server</span></label>
+        </div>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div>
+            <label for="ai-endpoint">Server address (OpenAI-compatible chat completions)</label>
+            <input id="ai-endpoint" type="text" spellcheck="false">
+          </div>
+          <div>
+            <label for="ai-model">Model name</label>
+            <input id="ai-model" type="text" spellcheck="false">
+          </div>
+        </div>
+        <div style="margin-top: 12px;">
+          <label for="ai-instructions">Instructions</label>
+          <textarea id="ai-instructions" rows="4"></textarea>
+        </div>
+        <div class="row" style="margin-top: 10px;">
+          <button id="ai-save" class="btn" type="button">Save</button>
+          <button id="ai-test" class="btn" type="button">Test Connection</button>
+          <span id="ai-status" class="hint" role="status" aria-live="polite"></span>
+        </div>
+      </div>
     </section>
 
-    <section id="view-logs" class="hidden">
+    <!-- Modes -->
+    <section id="view-modes" data-view="modes" class="hidden">
+      <div class="modes-layout">
+        <div class="card">
+          <h2>Modes</h2>
+          <ul id="mode-list" class="mode-list"></ul>
+          <div class="row" style="margin-top: 12px;">
+            <button id="mode-new" class="btn" type="button">New Mode</button>
+          </div>
+          <p class="hint">A mode switches on by itself in the apps you add to it. Elsewhere, the mode marked "In use" applies.</p>
+        </div>
+        <div class="card" id="mode-editor">
+          <div class="row" style="justify-content: space-between;">
+            <h2 id="mode-editor-title" style="margin: 0;">Mode</h2>
+            <div class="row">
+              <button id="mode-use" class="btn" type="button">Use This Mode</button>
+              <button id="mode-delete" class="btn danger" type="button">Delete</button>
+            </div>
+          </div>
+          <div class="stack" style="margin-top: 14px;">
+            <div>
+              <label for="mode-name">Name</label>
+              <input id="mode-name" type="text" maxlength="40">
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="mode-formatting">Formatting</label>
+                <select id="mode-formatting">
+                  <option value="off">Verbatim: exactly as spoken</option>
+                  <option value="basic">Basic: sentences and lists</option>
+                  <option value="structured">Structured: paragraphs and lists</option>
+                </select>
+              </div>
+              <div>
+                <label for="mode-insertion">Insert by</label>
+                <select id="mode-insertion">
+                  <option value="paste">Pasting (fastest)</option>
+                  <option value="type">Typing (for terminals and fields that block paste)</option>
+                  <option value="copy">Copying only (paste it yourself)</option>
+                </select>
+              </div>
+              <div>
+                <label for="mode-model">Speech model</label>
+                <select id="mode-model"></select>
+              </div>
+              <div>
+                <label for="mode-language">Language</label>
+                <select id="mode-language"></select>
+                <p id="mode-language-hint" class="hint"></p>
+              </div>
+            </div>
+            <div>
+              <p class="field-label">Cleanup</p>
+              <div class="check-list">
+                <label><input id="mode-fillers" type="checkbox"> <span>Remove "um", "uh" and repeated words</span></label>
+                <label><input id="mode-commands" type="checkbox"> <span>Spoken commands: "new line", "new paragraph", "scratch that"</span></label>
+                <label><input id="mode-punctuation" type="checkbox"> <span>Spoken punctuation: "comma", "period", "question mark", "open quote"</span></label>
+                <label><input id="mode-dictionary" type="checkbox"> <span>Use my dictionary (vocabulary and replacements)</span></label>
+                <label><input id="mode-translate" type="checkbox"> <span>Translate to English</span></label>
+                <label><input id="mode-ai" type="checkbox"> <span>Polish with my local AI model <span id="mode-ai-hint" class="hint"></span></span></label>
+                <label><input id="mode-return" type="checkbox"> <span>Press Return after inserting (sends messages in chat apps)</span></label>
+              </div>
+            </div>
+            <div>
+              <p class="field-label">Switch to this mode in these apps</p>
+              <div id="mode-apps" class="chips"></div>
+              <div class="row" style="margin-top: 8px;">
+                <button id="mode-add-app" class="btn small" type="button">Add App…</button>
+              </div>
+              <div id="mode-recent-apps" class="chips"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dictionary -->
+    <section id="view-dictionary" data-view="dictionary" class="hidden">
+      <div class="card">
+        <h2>Vocabulary</h2>
+        <p class="hint">Names, products and jargon MyVoice should recognize and spell exactly as written here. Keep the list short: very long lists can lower accuracy.</p>
+        <form id="vocab-form" class="shortcut-row">
+          <input id="vocab-input" type="text" maxlength="64" placeholder="Example: Kubernetes" aria-label="New vocabulary word">
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <div id="vocab-list" class="chips"></div>
+      </div>
+
+      <div class="card">
+        <h2>Replacements</h2>
+        <p class="hint">When you say the first part, MyVoice writes the second. Matching ignores case and only matches whole words. Symbols such as @ or .com join the words next to them.</p>
+        <form id="rule-form" class="grid-2">
+          <div>
+            <label for="rule-from">When I say</label>
+            <input id="rule-from" type="text" maxlength="64" placeholder="my work email">
+          </div>
+          <div>
+            <label for="rule-to">Write</label>
+            <textarea id="rule-to" rows="2" placeholder="name@example.com"></textarea>
+          </div>
+          <div><button class="btn" type="submit">Add Replacement</button></div>
+        </form>
+        <ul id="rule-list" class="rule-list"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Import and export</h2>
+        <p class="hint">CSV: one word per line for vocabulary, or "spoken,written" for a replacement.</p>
+        <div class="row">
+          <button id="dictionary-import" class="btn" type="button">Import CSV…</button>
+          <button id="dictionary-export" class="btn" type="button">Export CSV…</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section id="view-logs" data-view="logs" class="hidden">
+      <div class="card">
+        <h2>Your dictation</h2>
+        <div id="stats" class="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2>Transcribe a file</h2>
+        <div id="drop-zone" class="drop-zone">
+          <p style="margin: 0 0 10px;">Drop an audio or video file here</p>
+          <button id="file-choose" class="btn" type="button">Choose File…</button>
+        </div>
+        <div id="file-progress-row" class="row hidden" style="margin-top: 12px;">
+          <progress id="file-progress" class="file-progress" max="100"></progress>
+          <span id="file-progress-label" class="hint" role="status" aria-live="polite"></span>
+          <button id="file-cancel" class="btn small" type="button">Cancel</button>
+        </div>
+        <p id="file-result" class="hint" role="status" aria-live="polite"></p>
+      </div>
+
       <div class="card">
         <h2>Recording History</h2>
         <div class="toolbar">
           <div class="field">
-            <label for="log-date-picker">Date</label>
-            <input id="log-date-picker" type="date">
+            <label for="log-search">Search all history</label>
+            <input id="log-search" type="search" placeholder="Search text, apps and modes">
           </div>
           <div class="field">
-            <label for="log-search">Search transcript</label>
-            <input id="log-search" type="search" placeholder="Search text...">
+            <label for="log-date-picker">Or browse a day</label>
+            <input id="log-date-picker" type="date">
           </div>
           <button id="export-txt" class="btn" type="button">Export TXT</button>
           <button id="export-json" class="btn" type="button">Export JSON</button>
         </div>
         <p id="log-date"></p>
-        <ul id="log-list"></ul>
+        <ul id="log-list" class="history-list"></ul>
       </div>
     </section>
 
-    <section id="view-setup" class="hidden">
+    <!-- Models -->
+    <section id="view-models" data-view="models" class="hidden">
+      <div class="card">
+        <h2>Speech models</h2>
+        <p class="hint">Models run on this Mac. Bigger models are more accurate and slower. English models are smaller and faster for English. Each download is checked against its published checksum.</p>
+        <ul id="model-list" class="model-list"></ul>
+      </div>
+    </section>
+
+    <!-- Setup -->
+    <section id="view-setup" data-view="setup" class="hidden">
       <div class="card">
         <h2>Set up MyVoice</h2>
         <p class="hint">MyVoice needs two macOS permissions. Your speech is turned into text on this Mac and is never uploaded.</p>
@@ -374,6 +737,12 @@
       </div>
     </section>
   </main>
+  <script src="../../dist/renderer/app-common.js"></script>
+  <script src="../../dist/renderer/settings-view.js"></script>
+  <script src="../../dist/renderer/modes-view.js"></script>
+  <script src="../../dist/renderer/dictionary-view.js"></script>
+  <script src="../../dist/renderer/history-view.js"></script>
+  <script src="../../dist/renderer/models-view.js"></script>
   <script src="../../dist/renderer/app.js"></script>
 </body>
 </html>

@@ -12,12 +12,14 @@ import { getDictationSettings, formatAutoStopDelayLabel } from './dictation-sett
 import { getAudioSettings } from './audio-settings';
 import { appendRecordingLog } from './recording-log';
 import { broadcastLogUpdated } from './app-window';
+import { getPermissionSnapshot } from './permissions';
+import { missingPermissions } from './permission-state';
 
 let state: DictationState = 'idle';
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAudioAboveThreshold = 0;
 let isFinishing = false;
-let permissionsChecked = false;
+let onPermissionsMissing: (() => void) | null = null;
 let audioLevelCount = 0;
 const SILENCE_AUDIO_THRESHOLD = 0.02;
 const SHOULD_LOG_AUDIO_LEVELS = process.env.MYVOICE_DEBUG_AUDIO_LEVELS === '1';
@@ -29,6 +31,11 @@ export function initDictation(paths: WhisperPaths): void {
   whisperCli = paths.whisperCli;
   whisperModel = paths.whisperModel;
   console.log('[MyVoice] Dictation initialized:', { whisperCli, whisperModel });
+}
+
+/** Called when dictation is triggered while Microphone or Accessibility is missing. */
+export function setPermissionsMissingHandler(handler: () => void): void {
+  onPermissionsMissing = handler;
 }
 
 export function getDictationState(): DictationState {
@@ -53,32 +60,23 @@ export function cancelDictation(): void {
   resetState();
 }
 
-async function checkPermissions(): Promise<boolean> {
-  if (permissionsChecked) return true;
+// Checked on every start: a grant can be revoked in System Settings at any time.
+function checkPermissions(): boolean {
+  const missing = missingPermissions(getPermissionSnapshot());
+  if (missing.length === 0) return true;
 
-  if (!native.keyboardCheckPermission()) {
-    native.keyboardRequestPermission();
-    return false;
-  }
-
-  const micAuthorized = await native.speechRequestAuth();
-  if (!micAuthorized) {
-    console.error('[MyVoice] Microphone permission denied');
-    return false;
-  }
-
-  permissionsChecked = true;
-  return true;
+  console.error('[MyVoice] Missing permissions:', missing.join(', '));
+  onPermissionsMissing?.();
+  return false;
 }
 
-async function startDictation(): Promise<void> {
+function startDictation(): void {
   if (!whisperCli || !whisperModel) {
     console.error('[MyVoice] Dictation not initialized — call initDictation() first');
     return;
   }
 
-  const permitted = await checkPermissions();
-  if (!permitted) return;
+  if (!checkPermissions()) return;
 
   state = 'recording';
   isFinishing = false;

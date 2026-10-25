@@ -23,6 +23,10 @@ export const IPC_CHANNELS = {
   APP_LOG_UPDATED: 'app:log-updated',
   APP_SET_AUDIO_DEVICE: 'app:set-audio-device',
   APP_NAVIGATE: 'app:navigate',
+  APP_GET_PERMISSIONS: 'app:get-permissions',
+  APP_REQUEST_MICROPHONE: 'app:request-microphone',
+  APP_REQUEST_ACCESSIBILITY: 'app:request-accessibility',
+  APP_COMPLETE_SETUP: 'app:complete-setup',
 } as const;
 
 // Dictation state machine

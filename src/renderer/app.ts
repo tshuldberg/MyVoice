@@ -13,12 +13,22 @@ const IPC_CHANNELS = {
   APP_EXPORT_LOG: 'app:export-log',
   APP_LOG_UPDATED: 'app:log-updated',
   APP_NAVIGATE: 'app:navigate',
+  APP_GET_PERMISSIONS: 'app:get-permissions',
+  APP_REQUEST_MICROPHONE: 'app:request-microphone',
+  APP_REQUEST_ACCESSIBILITY: 'app:request-accessibility',
+  APP_COMPLETE_SETUP: 'app:complete-setup',
 } as const;
 
 type FormattingMode = 'off' | 'basic' | 'structured';
 type WaveformSensitivity = 'low' | 'balanced' | 'high';
-type ViewKey = 'settings' | 'logs';
+type ViewKey = 'settings' | 'logs' | 'setup';
 type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
+type MicrophoneStatus = 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown';
+
+interface PermissionSnapshot {
+  microphone: MicrophoneStatus;
+  accessibility: boolean;
+}
 
 interface RecordingLogEntry {
   timestamp: string;
@@ -50,6 +60,11 @@ interface AppStatePayload {
   todayDateKey: string;
   availableLogDates: string[];
   autoStopOptionsMs: number[];
+  setup: {
+    completed: boolean;
+    permissions: PermissionSnapshot;
+  };
+  appVersion: string;
 }
 
 interface MyVoiceIpcBridge {
@@ -71,8 +86,10 @@ function required<T extends HTMLElement>(id: string): T {
 
 const tabSettings = required<HTMLButtonElement>('tab-settings');
 const tabLogs = required<HTMLButtonElement>('tab-logs');
+const tabSetup = required<HTMLButtonElement>('tab-setup');
 const settingsView = required<HTMLElement>('view-settings');
 const logsView = required<HTMLElement>('view-logs');
+const setupView = required<HTMLElement>('view-setup');
 
 const formattingModeEl = required<HTMLSelectElement>('formatting-mode');
 const autoStopEl = required<HTMLSelectElement>('auto-stop');
@@ -91,17 +108,94 @@ const logSearchEl = required<HTMLInputElement>('log-search');
 const exportTxtEl = required<HTMLButtonElement>('export-txt');
 const exportJsonEl = required<HTMLButtonElement>('export-json');
 
+const microphoneStatusEl = required<HTMLElement>('microphone-status');
+const microphoneActionEl = required<HTMLButtonElement>('microphone-action');
+const accessibilityStatusEl = required<HTMLElement>('accessibility-status');
+const accessibilityActionEl = required<HTMLButtonElement>('accessibility-action');
+const accessibilityHelpEl = required<HTMLElement>('accessibility-help');
+const finishSetupEl = required<HTMLButtonElement>('finish-setup');
+const finishHintEl = required<HTMLElement>('finish-hint');
+
+// Accessibility has no change event, so the Setup view polls while it is open.
+const PERMISSION_POLL_MS = 1000;
+let permissionPoll: ReturnType<typeof setInterval> | null = null;
+let accessibilityRequested = false;
+
 let state: AppStatePayload | null = null;
 let activeLogDate = '';
 let activeLogEntries: RecordingLogEntry[] = [];
 let visibleLogEntries: RecordingLogEntry[] = [];
 
 function setActiveView(view: ViewKey): void {
-  const settingsActive = view === 'settings';
-  tabSettings.classList.toggle('active', settingsActive);
-  tabLogs.classList.toggle('active', !settingsActive);
-  settingsView.classList.toggle('hidden', !settingsActive);
-  logsView.classList.toggle('hidden', settingsActive);
+  const views: [ViewKey, HTMLButtonElement, HTMLElement][] = [
+    ['settings', tabSettings, settingsView],
+    ['logs', tabLogs, logsView],
+    ['setup', tabSetup, setupView],
+  ];
+  for (const [key, tab, section] of views) {
+    tab.classList.toggle('active', key === view);
+    section.classList.toggle('hidden', key !== view);
+  }
+
+  if (view === 'setup') {
+    startPermissionPoll();
+  } else {
+    stopPermissionPoll();
+  }
+}
+
+function setStatus(el: HTMLElement, text: string, ok: boolean): void {
+  el.textContent = text;
+  el.classList.toggle('ok', ok);
+  el.classList.toggle('missing', !ok);
+}
+
+function renderPermissions(permissions: PermissionSnapshot): void {
+  const mic = permissions.microphone;
+  if (mic === 'granted') {
+    setStatus(microphoneStatusEl, 'Allowed', true);
+  } else if (mic === 'not-determined') {
+    setStatus(microphoneStatusEl, 'Not asked yet', false);
+    microphoneActionEl.textContent = 'Allow Microphone';
+  } else {
+    setStatus(microphoneStatusEl, 'Turned off', false);
+    microphoneActionEl.textContent = 'Open Microphone Settings';
+  }
+  microphoneActionEl.classList.toggle('hidden', mic === 'granted');
+
+  if (permissions.accessibility) {
+    setStatus(accessibilityStatusEl, 'Allowed', true);
+  } else {
+    setStatus(accessibilityStatusEl, 'Not allowed yet', false);
+    accessibilityActionEl.textContent = accessibilityRequested ? 'Open Accessibility Settings' : 'Allow Accessibility';
+  }
+  accessibilityActionEl.classList.toggle('hidden', permissions.accessibility);
+  accessibilityHelpEl.classList.toggle('hidden', permissions.accessibility || !accessibilityRequested);
+
+  const ready = mic === 'granted' && permissions.accessibility;
+  finishHintEl.textContent = ready
+    ? 'All set. Double-tap fn in any app to dictate.'
+    : 'Dictation starts working once both permissions are allowed.';
+}
+
+async function refreshPermissions(): Promise<void> {
+  const permissions = await ipc().invoke(IPC_CHANNELS.APP_GET_PERMISSIONS) as PermissionSnapshot;
+  renderPermissions(permissions);
+}
+
+function startPermissionPoll(): void {
+  if (permissionPoll) return;
+  permissionPoll = setInterval(() => {
+    refreshPermissions().catch((error) => {
+      console.error('[MyVoice][AppWindow] Failed to read permissions:', error);
+    });
+  }, PERMISSION_POLL_MS);
+}
+
+function stopPermissionPoll(): void {
+  if (!permissionPoll) return;
+  clearInterval(permissionPoll);
+  permissionPoll = null;
 }
 
 function formatAutoStopLabel(ms: number): string {
@@ -231,6 +325,7 @@ function renderSettings(payload: AppStatePayload): void {
 function render(payload: AppStatePayload): void {
   state = payload;
   renderSettings(payload);
+  renderPermissions(payload.setup.permissions);
   applyAvailableDates(payload.availableLogDates);
   activeLogDate = payload.todayDateKey;
   activeLogEntries = payload.todayLog;
@@ -245,6 +340,24 @@ async function refreshState(): Promise<void> {
 
 tabSettings.addEventListener('click', () => setActiveView('settings'));
 tabLogs.addEventListener('click', () => setActiveView('logs'));
+tabSetup.addEventListener('click', () => setActiveView('setup'));
+
+microphoneActionEl.addEventListener('click', async () => {
+  const permissions = await ipc().invoke(IPC_CHANNELS.APP_REQUEST_MICROPHONE) as PermissionSnapshot;
+  renderPermissions(permissions);
+});
+
+accessibilityActionEl.addEventListener('click', async () => {
+  const permissions = await ipc().invoke(IPC_CHANNELS.APP_REQUEST_ACCESSIBILITY) as PermissionSnapshot;
+  accessibilityRequested = true;
+  renderPermissions(permissions);
+});
+
+finishSetupEl.addEventListener('click', async () => {
+  const next = await ipc().invoke(IPC_CHANNELS.APP_COMPLETE_SETUP) as AppStatePayload;
+  render(next);
+  setActiveView('settings');
+});
 logDatePickerEl.addEventListener('change', () => {
   const selected = logDatePickerEl.value;
   if (!selected) return;
@@ -352,7 +465,7 @@ ipc().on(IPC_CHANNELS.APP_LOG_UPDATED, (payload: unknown) => {
 });
 
 ipc().on(IPC_CHANNELS.APP_NAVIGATE, (payload: unknown) => {
-  setActiveView(payload === 'logs' ? 'logs' : 'settings');
+  setActiveView(payload === 'logs' || payload === 'setup' ? payload : 'settings');
 });
 
 refreshState().catch((error) => {

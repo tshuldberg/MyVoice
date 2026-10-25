@@ -1,10 +1,13 @@
 import { app, globalShortcut, Menu } from 'electron';
 import { createOverlayWindow } from './overlay-window';
 import { createTray } from './tray';
-import { toggleDictation, cancelDictation, getDictationState, initDictation } from './dictation-controller';
+import { toggleDictation, cancelDictation, getDictationState, initDictation, setPermissionsMissingHandler } from './dictation-controller';
 import { hotkeyStart, hotkeyStop } from './native-bridge';
 import { ensureWhisperReady } from './dependency-setup';
 import { createAppWindow, showAppWindow } from './app-window';
+import { getPermissionSnapshot, setAccessibilityGrantedHandler } from './permissions';
+import { shouldShowSetup } from './permission-state';
+import { getSetupSettings } from './setup-settings';
 import { loadDockIcon } from './icon';
 import { getHotkeySettings } from './hotkey-settings';
 import { applyTriggerShortcut, clearTriggerShortcut, setTriggerShortcutHandler } from './trigger-shortcut';
@@ -29,6 +32,12 @@ function installEpipeGuards(): void {
 }
 
 installEpipeGuards();
+
+function startFnListener(): void {
+  hotkeyStart(() => {
+    toggleDictation();
+  });
+}
 
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -65,6 +74,7 @@ app.whenReady().then(async () => {
     openMainWindow: () => showAppWindow('settings'),
     openSettings: () => showAppWindow('settings'),
     openTodayLog: () => showAppWindow('logs'),
+    openSetup: () => showAppWindow('setup'),
   });
 
   // Pre-create overlay window (hidden)
@@ -72,6 +82,7 @@ app.whenReady().then(async () => {
 
   // Initialize dictation with resolved paths
   initDictation(whisperPaths);
+  setPermissionsMissingHandler(() => showAppWindow('setup'));
 
   setTriggerShortcutHandler(() => {
     toggleDictation();
@@ -82,10 +93,14 @@ app.whenReady().then(async () => {
     console.error('[MyVoice] Failed to register trigger shortcut:', triggerShortcutResult.error);
   }
 
-  // Start listening for fn double-tap
-  hotkeyStart(() => {
-    toggleDictation();
-  });
+  // Start listening for fn double-tap. The listener needs Accessibility, so it is
+  // re-armed when that permission is granted while MyVoice is running.
+  startFnListener();
+  setAccessibilityGrantedHandler(startFnListener);
+
+  if (shouldShowSetup(getPermissionSnapshot(), getSetupSettings().completed)) {
+    showAppWindow('setup');
+  }
 
   // Register Escape key to cancel active dictation
   globalShortcut.register('Escape', () => {

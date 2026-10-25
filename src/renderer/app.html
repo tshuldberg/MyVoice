@@ -191,6 +191,70 @@
       color: var(--muted);
       font-size: 13px;
     }
+
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .steps {
+      list-style: none;
+      margin: 14px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: #fbfdff;
+    }
+
+    .step-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .step-why {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status.ok { color: #1d7a46; }
+    .status.missing { color: #a15c00; }
+
+    textarea {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font: inherit;
+      font-size: 14px;
+      resize: vertical;
+    }
+
+    .setup-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .setup-actions .hint { margin-top: 0; }
   </style>
 </head>
 <body>
@@ -201,6 +265,7 @@
     <div class="tabs">
       <button class="tab-btn active" id="tab-settings" type="button">Settings</button>
       <button class="tab-btn" id="tab-logs" type="button">Today's Log</button>
+      <button class="tab-btn" id="tab-setup" type="button">Setup</button>
     </div>
 
     <section id="view-settings">
@@ -268,6 +333,44 @@
         </div>
         <p id="log-date"></p>
         <ul id="log-list"></ul>
+      </div>
+    </section>
+
+    <section id="view-setup" class="hidden">
+      <div class="card">
+        <h2>Set up MyVoice</h2>
+        <p class="hint">MyVoice needs two macOS permissions. Your speech is turned into text on this Mac and is never uploaded.</p>
+        <ol class="steps">
+          <li class="step">
+            <div class="step-main">
+              <strong>Microphone</strong>
+              <span class="step-why">Hears you while you dictate, and only then.</span>
+            </div>
+            <span id="microphone-status" class="status">Checking…</span>
+            <button id="microphone-action" class="btn" type="button">Allow Microphone</button>
+          </li>
+          <li class="step">
+            <div class="step-main">
+              <strong>Accessibility</strong>
+              <span class="step-why">Notices your fn double-tap and pastes the text at your cursor.</span>
+            </div>
+            <span id="accessibility-status" class="status">Checking…</span>
+            <button id="accessibility-action" class="btn" type="button">Allow Accessibility</button>
+          </li>
+        </ol>
+        <p id="accessibility-help" class="hint hidden">In System Settings, open Privacy &amp; Security &gt; Accessibility and turn on MyVoice. If MyVoice is already on but text never appears, select it, remove it with the minus button, then add it again.</p>
+      </div>
+
+      <div class="card">
+        <h2>Try it</h2>
+        <label for="practice">Click in the box, double-tap fn, say a sentence, then pause.</label>
+        <textarea id="practice" rows="3" placeholder="Your words appear here."></textarea>
+        <p class="hint">Does double-tapping fn open the emoji picker or Apple Dictation instead? In System Settings &gt; Keyboard, set "Press 🌐 key to" to "Do Nothing" and give Dictation a shortcut other than pressing fn twice. You can also set your own MyVoice shortcut under Settings.</p>
+      </div>
+
+      <div class="setup-actions">
+        <button id="finish-setup" class="btn primary" type="button">Done</button>
+        <span id="finish-hint" class="hint"></span>
       </div>
     </section>
   </main>

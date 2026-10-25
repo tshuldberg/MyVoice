@@ -22,8 +22,11 @@ import { getHotkeySettings, setTriggerShortcut } from './hotkey-settings';
 import { applyTriggerShortcut, getTriggerShortcutStatus } from './trigger-shortcut';
 import { getAudioSettings, setSelectedDeviceUID } from './audio-settings';
 import * as native from './native-bridge';
+import { getPermissionSnapshot, requestAccessibility, requestMicrophone } from './permissions';
+import type { PermissionSnapshot } from './permission-state';
+import { getSetupSettings, setSetupCompleted } from './setup-settings';
 
-export type AppSection = 'settings' | 'logs';
+export type AppSection = 'settings' | 'logs' | 'setup';
 
 export interface AppStatePayload {
   formatting: ReturnType<typeof getFormattingSettings>;
@@ -42,6 +45,11 @@ export interface AppStatePayload {
   todayDateKey: string;
   availableLogDates: string[];
   autoStopOptionsMs: typeof AUTO_STOP_DELAY_OPTIONS_MS;
+  setup: {
+    completed: boolean;
+    permissions: PermissionSnapshot;
+  };
+  appVersion: string;
 }
 
 interface ExportLogPayload {
@@ -65,6 +73,10 @@ const IPC_CHANNELS = {
   APP_EXPORT_LOG: 'app:export-log',
   APP_LOG_UPDATED: 'app:log-updated',
   APP_NAVIGATE: 'app:navigate',
+  APP_GET_PERMISSIONS: 'app:get-permissions',
+  APP_REQUEST_MICROPHONE: 'app:request-microphone',
+  APP_REQUEST_ACCESSIBILITY: 'app:request-accessibility',
+  APP_COMPLETE_SETUP: 'app:complete-setup',
 } as const;
 
 let appWindow: BrowserWindow | null = null;
@@ -96,6 +108,11 @@ function getAppState(): AppStatePayload {
     todayDateKey: getTodayDateKey(),
     availableLogDates: listRecordingLogDates(),
     autoStopOptionsMs: AUTO_STOP_DELAY_OPTIONS_MS,
+    setup: {
+      completed: getSetupSettings().completed,
+      permissions: getPermissionSnapshot(),
+    },
+    appVersion: app.getVersion(),
   };
 }
 
@@ -176,6 +193,14 @@ function registerHandlers(): void {
     } else {
       native.clearAudioInputDevice();
     }
+    return getAppState();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APP_GET_PERMISSIONS, () => getPermissionSnapshot());
+  ipcMain.handle(IPC_CHANNELS.APP_REQUEST_MICROPHONE, () => requestMicrophone());
+  ipcMain.handle(IPC_CHANNELS.APP_REQUEST_ACCESSIBILITY, () => requestAccessibility());
+  ipcMain.handle(IPC_CHANNELS.APP_COMPLETE_SETUP, () => {
+    setSetupCompleted(true);
     return getAppState();
   });
 

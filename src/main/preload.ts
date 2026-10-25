@@ -25,6 +25,10 @@ const IPC_CHANNELS = {
   APP_EXPORT_LOG: 'app:export-log',
   APP_LOG_UPDATED: 'app:log-updated',
   APP_NAVIGATE: 'app:navigate',
+  APP_GET_PERMISSIONS: 'app:get-permissions',
+  APP_REQUEST_MICROPHONE: 'app:request-microphone',
+  APP_REQUEST_ACCESSIBILITY: 'app:request-accessibility',
+  APP_COMPLETE_SETUP: 'app:complete-setup',
 } as const;
 
 type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -61,6 +65,10 @@ const invokeChannels = new Set<IpcChannel>([
   IPC_CHANNELS.APP_GET_LOG_BY_DATE,
   IPC_CHANNELS.APP_LIST_LOG_DATES,
   IPC_CHANNELS.APP_EXPORT_LOG,
+  IPC_CHANNELS.APP_GET_PERMISSIONS,
+  IPC_CHANNELS.APP_REQUEST_MICROPHONE,
+  IPC_CHANNELS.APP_REQUEST_ACCESSIBILITY,
+  IPC_CHANNELS.APP_COMPLETE_SETUP,
 ]);
 
 contextBridge.exposeInMainWorld('myvoiceIpc', {

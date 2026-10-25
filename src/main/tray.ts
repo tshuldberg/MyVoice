@@ -26,6 +26,7 @@ interface TrayActions {
   openMainWindow?: () => void;
   openSettings?: () => void;
   openTodayLog?: () => void;
+  openSetup?: () => void;
 }
 
 let trayActions: TrayActions = {};
@@ -78,6 +79,12 @@ function updateTrayMenu(): void {
       label: "Today's Log",
       click: () => {
         trayActions.openTodayLog?.();
+      },
+    },
+    {
+      label: 'Set Up Permissions…',
+      click: () => {
+        trayActions.openSetup?.();
       },
     },
     { type: 'separator' },

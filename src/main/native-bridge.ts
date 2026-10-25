@@ -4,13 +4,7 @@ import path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const native = require(path.join(__dirname, '../../src/native/build/Release/myvoice_native.node'));
 
-// --- Microphone Authorization ---------------------------------------------
-
-export function speechRequestAuth(): Promise<boolean> {
-  return new Promise((resolve) => {
-    native.speechRequestAuth((granted: boolean) => resolve(granted));
-  });
-}
+// --- Audio Availability ----------------------------------------------------
 
 export function speechIsAvailable(): boolean {
   return native.speechIsAvailable();
@@ -71,12 +65,4 @@ export function keyboardType(text: string, delayMs?: number): void {
 
 export function keyboardPaste(): void {
   native.keyboardPaste();
-}
-
-export function keyboardCheckPermission(): boolean {
-  return native.keyboardCheckPermission();
-}
-
-export function keyboardRequestPermission(): void {
-  native.keyboardRequestPermission();
 }

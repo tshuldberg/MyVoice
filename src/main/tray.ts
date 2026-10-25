@@ -2,7 +2,6 @@ import { Tray, Menu, nativeImage, app, shell } from 'electron';
 import {
   getFormattingSettings,
   setFormattingMode,
-  setAiEnhancementEnabled,
 } from './formatting-settings';
 import {
   getVisualizationSettings,
@@ -124,20 +123,6 @@ function updateTrayMenu(): void {
             setFormattingMode('structured');
             updateTrayMenu();
           },
-        },
-        { type: 'separator' },
-        {
-          label: 'AI Enhancement (optional)',
-          type: 'checkbox',
-          checked: formatting.aiEnhancementEnabled,
-          click: (menuItem) => {
-            setAiEnhancementEnabled(menuItem.checked);
-            updateTrayMenu();
-          },
-        },
-        {
-          label: 'AI enhancement currently falls back to local formatting.',
-          enabled: false,
         },
       ],
     },

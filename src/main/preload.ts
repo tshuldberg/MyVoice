@@ -14,7 +14,6 @@ const IPC_CHANNELS = {
   OVERLAY_SET_SIZE: 'overlay:set-size',
   APP_GET_STATE: 'app:get-state',
   APP_SET_FORMATTING_MODE: 'app:set-formatting-mode',
-  APP_SET_AI_ENHANCEMENT: 'app:set-ai-enhancement',
   APP_SET_AUTO_STOP: 'app:set-auto-stop',
   APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
@@ -53,7 +52,6 @@ const receiveChannels = new Set<IpcChannel>([
 const invokeChannels = new Set<IpcChannel>([
   IPC_CHANNELS.APP_GET_STATE,
   IPC_CHANNELS.APP_SET_FORMATTING_MODE,
-  IPC_CHANNELS.APP_SET_AI_ENHANCEMENT,
   IPC_CHANNELS.APP_SET_AUTO_STOP,
   IPC_CHANNELS.APP_SET_WAVEFORM_SENSITIVITY,
   IPC_CHANNELS.APP_SET_WAVEFORM_DEBUG,

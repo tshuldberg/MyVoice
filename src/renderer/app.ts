@@ -2,7 +2,6 @@
 const IPC_CHANNELS = {
   APP_GET_STATE: 'app:get-state',
   APP_SET_FORMATTING_MODE: 'app:set-formatting-mode',
-  APP_SET_AI_ENHANCEMENT: 'app:set-ai-enhancement',
   APP_SET_AUTO_STOP: 'app:set-auto-stop',
   APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
@@ -30,7 +29,6 @@ interface RecordingLogEntry {
 interface AppStatePayload {
   formatting: {
     mode: FormattingMode;
-    aiEnhancementEnabled: boolean;
   };
   dictation: {
     autoStopPauseMs: number;
@@ -77,7 +75,6 @@ const settingsView = required<HTMLElement>('view-settings');
 const logsView = required<HTMLElement>('view-logs');
 
 const formattingModeEl = required<HTMLSelectElement>('formatting-mode');
-const aiEnhancementEl = required<HTMLInputElement>('ai-enhancement');
 const autoStopEl = required<HTMLSelectElement>('auto-stop');
 const audioDeviceEl = required<HTMLSelectElement>('audio-device');
 const waveformSensitivityEl = required<HTMLSelectElement>('waveform-sensitivity');
@@ -189,7 +186,6 @@ async function exportVisibleLog(format: 'txt' | 'json'): Promise<void> {
 
 function renderSettings(payload: AppStatePayload): void {
   formattingModeEl.value = payload.formatting.mode;
-  aiEnhancementEl.checked = payload.formatting.aiEnhancementEnabled;
   waveformSensitivityEl.value = payload.visualization.sensitivity;
   waveformDebugEl.checked = payload.visualization.debugOverlay;
   triggerShortcutEl.value = payload.hotkey.triggerShortcut || '';
@@ -275,14 +271,6 @@ formattingModeEl.addEventListener('change', async () => {
   const next = await ipc().invoke(
     IPC_CHANNELS.APP_SET_FORMATTING_MODE,
     formattingModeEl.value as FormattingMode
-  ) as AppStatePayload;
-  render(next);
-});
-
-aiEnhancementEl.addEventListener('change', async () => {
-  const next = await ipc().invoke(
-    IPC_CHANNELS.APP_SET_AI_ENHANCEMENT,
-    aiEnhancementEl.checked
   ) as AppStatePayload;
   render(next);
 });

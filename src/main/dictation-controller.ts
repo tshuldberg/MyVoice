@@ -186,11 +186,6 @@ function transcribeWithWhisper(wavPath: string): void {
       }
 
       const formatting = getFormattingSettings();
-      if (formatting.aiEnhancementEnabled) {
-        // Placeholder for optional AI formatter integration; local formatter remains default.
-        console.log('[MyVoice] AI enhancement enabled; falling back to local formatter (provider not configured).');
-      }
-
       const formatted = formatTranscript(transcript, formatting.mode);
       finishDictation(formatted || transcript);
     }

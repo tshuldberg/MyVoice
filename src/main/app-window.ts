@@ -3,7 +3,6 @@ import path from 'path';
 import fs from 'fs';
 import {
   getFormattingSettings,
-  setAiEnhancementEnabled,
   setFormattingMode,
   type FormattingMode,
 } from './formatting-settings';
@@ -55,7 +54,6 @@ interface ExportLogPayload {
 const IPC_CHANNELS = {
   APP_GET_STATE: 'app:get-state',
   APP_SET_FORMATTING_MODE: 'app:set-formatting-mode',
-  APP_SET_AI_ENHANCEMENT: 'app:set-ai-enhancement',
   APP_SET_AUTO_STOP: 'app:set-auto-stop',
   APP_SET_WAVEFORM_SENSITIVITY: 'app:set-waveform-sensitivity',
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
@@ -151,10 +149,6 @@ function registerHandlers(): void {
   });
   ipcMain.handle(IPC_CHANNELS.APP_SET_FORMATTING_MODE, (_event, mode: FormattingMode) => {
     setFormattingMode(mode);
-    return getAppState();
-  });
-  ipcMain.handle(IPC_CHANNELS.APP_SET_AI_ENHANCEMENT, (_event, enabled: boolean) => {
-    setAiEnhancementEnabled(Boolean(enabled));
     return getAppState();
   });
   ipcMain.handle(IPC_CHANNELS.APP_SET_AUTO_STOP, (_event, pauseMs: AutoStopPauseMs) => {

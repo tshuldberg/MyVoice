@@ -212,3 +212,12 @@ function applyStructuredParagraphs(text: string): string {
 
   return paragraphs.join('\n\n');
 }
+
+/**
+ * True when whisper returned only bracketed annotations such as "[BLANK_AUDIO]"
+ * or "(silence)" instead of words. Those must never be pasted.
+ */
+export function isNonSpeechTranscript(rawTranscript: string): boolean {
+  const withoutAnnotations = rawTranscript.replace(/\[[^\]]*\]|\([^)]*\)/g, '');
+  return withoutAnnotations.trim().length === 0;
+}

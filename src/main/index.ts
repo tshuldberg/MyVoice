@@ -1,9 +1,9 @@
 import { app, globalShortcut, Menu } from 'electron';
 import { createOverlayWindow } from './overlay-window';
 import { createTray } from './tray';
-import { toggleDictation, cancelDictation, getDictationState, initDictation, setPermissionsMissingHandler } from './dictation-controller';
+import { toggleDictation, initDictation, setPermissionsMissingHandler } from './dictation-controller';
 import { hotkeyStart, hotkeyStop } from './native-bridge';
-import { ensureWhisperReady } from './dependency-setup';
+import { ensureWhisperReady, warmUpWhisper } from './dependency-setup';
 import { createAppWindow, showAppWindow } from './app-window';
 import { getPermissionSnapshot, setAccessibilityGrantedHandler } from './permissions';
 import { shouldShowSetup } from './permission-state';
@@ -67,6 +67,7 @@ app.whenReady().then(async () => {
 
   // Ensure whisper-cli and model are available (may show setup UI)
   const whisperPaths = await ensureWhisperReady();
+  warmUpWhisper(whisperPaths);
 
   // Create main app window and tray icon
   createAppWindow();
@@ -101,13 +102,6 @@ app.whenReady().then(async () => {
   if (shouldShowSetup(getPermissionSnapshot(), getSetupSettings().completed)) {
     showAppWindow('setup');
   }
-
-  // Register Escape key to cancel active dictation
-  globalShortcut.register('Escape', () => {
-    if (getDictationState() !== 'idle') {
-      cancelDictation();
-    }
-  });
 
   console.log('MyVoice is running. Double-tap fn to dictate.');
 });

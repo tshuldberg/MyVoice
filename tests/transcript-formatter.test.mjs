@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTranscript } from '../dist/main/transcript-formatter.js';
+import { formatTranscript, isNonSpeechTranscript } from '../dist/main/transcript-formatter.js';
 
 test('off mode preserves verbatim transcript except trim', () => {
   const input = '  hello world  ';
@@ -29,4 +29,16 @@ test('structured mode keeps paragraph separators when connector split occurs', (
   const output = formatTranscript(input, 'structured');
 
   assert.match(output, /\n\n/);
+});
+
+test('bracketed whisper annotations are not speech', () => {
+  assert.equal(isNonSpeechTranscript(''), true);
+  assert.equal(isNonSpeechTranscript('   '), true);
+  assert.equal(isNonSpeechTranscript('[BLANK_AUDIO]'), true);
+  assert.equal(isNonSpeechTranscript(' (silence) [MUSIC] '), true);
+});
+
+test('real words are speech, even next to annotations', () => {
+  assert.equal(isNonSpeechTranscript('you'), false);
+  assert.equal(isNonSpeechTranscript('[MUSIC] hello there'), false);
 });

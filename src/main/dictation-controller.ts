@@ -1,5 +1,6 @@
-import { clipboard } from 'electron';
+import { clipboard, globalShortcut } from 'electron';
 import { execFile } from 'child_process';
+import { rmSync } from 'fs';
 import { DictationState } from '../shared/types';
 import { IPC_CHANNELS } from '../shared/types';
 import { showOverlay, hideOverlay, sendToOverlay } from './overlay-window';
@@ -7,7 +8,7 @@ import { setRecordingState } from './tray';
 import * as native from './native-bridge';
 import type { WhisperPaths } from './dependency-setup';
 import { getFormattingSettings } from './formatting-settings';
-import { formatTranscript } from './transcript-formatter';
+import { formatTranscript, isNonSpeechTranscript } from './transcript-formatter';
 import { getDictationSettings, formatAutoStopDelayLabel } from './dictation-settings';
 import { getAudioSettings } from './audio-settings';
 import { appendRecordingLog } from './recording-log';
@@ -19,9 +20,13 @@ let state: DictationState = 'idle';
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAudioAboveThreshold = 0;
 let isFinishing = false;
-let onPermissionsMissing: (() => void) | null = null;
 let audioLevelCount = 0;
+let heardSpeech = false;
+// Bumped on every start so a late whisper result from a cancelled session is dropped.
+let sessionId = 0;
+let onPermissionsMissing: (() => void) | null = null;
 const SILENCE_AUDIO_THRESHOLD = 0.02;
+const CANCEL_SHORTCUT = 'Escape';
 const SHOULD_LOG_AUDIO_LEVELS = process.env.MYVOICE_DEBUG_AUDIO_LEVELS === '1';
 
 let whisperCli: string | null = null;
@@ -70,6 +75,20 @@ function checkPermissions(): boolean {
   return false;
 }
 
+// Escape is only claimed while dictating; a permanent global Escape would block it in every app.
+function setCancelShortcutEnabled(enabled: boolean): void {
+  const registered = globalShortcut.isRegistered(CANCEL_SHORTCUT);
+  if (enabled && !registered) {
+    globalShortcut.register(CANCEL_SHORTCUT, cancelDictation);
+  } else if (!enabled && registered) {
+    globalShortcut.unregister(CANCEL_SHORTCUT);
+  }
+}
+
+function deleteRecording(wavPath: string): void {
+  rmSync(wavPath, { force: true });
+}
+
 function startDictation(): void {
   if (!whisperCli || !whisperModel) {
     console.error('[MyVoice] Dictation not initialized — call initDictation() first');
@@ -79,11 +98,14 @@ function startDictation(): void {
   if (!checkPermissions()) return;
 
   state = 'recording';
+  sessionId++;
   isFinishing = false;
   setRecordingState(true);
+  setCancelShortcutEnabled(true);
   showOverlay();
   lastAudioAboveThreshold = Date.now();
   audioLevelCount = 0;
+  heardSpeech = false;
 
   // Apply saved audio input device before recording
   const audioDeviceUID = getAudioSettings().selectedDeviceUID;
@@ -113,6 +135,7 @@ function startDictation(): void {
 
       if (level > SILENCE_AUDIO_THRESHOLD) {
         lastAudioAboveThreshold = Date.now();
+        heardSpeech = true;
       }
 
       checkSilenceTimeout();
@@ -145,13 +168,22 @@ function stopDictation(): void {
     return;
   }
 
+  // Whisper invents words for silent clips (often "you"), so never send it one.
+  if (!heardSpeech) {
+    console.log('[MyVoice] Input never rose above the silence threshold; skipping transcription');
+    deleteRecording(wavPath);
+    sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, 'No speech detected.');
+    resetState();
+    return;
+  }
+
   console.log('[MyVoice] WAV saved:', wavPath);
   sendToOverlay(IPC_CHANNELS.DICTATION_PARTIAL_TEXT, 'Transcribing…');
 
-  transcribeWithWhisper(wavPath);
+  transcribeWithWhisper(wavPath, sessionId);
 }
 
-function transcribeWithWhisper(wavPath: string): void {
+function transcribeWithWhisper(wavPath: string, session: number): void {
   console.log('[MyVoice] Running whisper-cli on', wavPath);
 
   execFile(
@@ -164,10 +196,18 @@ function transcribeWithWhisper(wavPath: string): void {
     ],
     { timeout: 30000 },
     (error, stdout, stderr) => {
+      // The audio is only needed for this one transcription.
+      deleteRecording(wavPath);
+
+      if (session !== sessionId || state !== 'stopping') {
+        console.log('[MyVoice] Dictation was cancelled during transcription; discarding result');
+        return;
+      }
+
       if (error) {
         console.error('[MyVoice] Whisper error:', error.message);
         if (stderr) console.error('[MyVoice] Whisper stderr:', stderr);
-        sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, 'Transcription failed. Check whisper-cli installation.');
+        sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, 'Transcription failed. Try again.');
         resetState();
         return;
       }
@@ -176,7 +216,7 @@ function transcribeWithWhisper(wavPath: string): void {
       const transcript = stdout.trim();
       console.log('[MyVoice] Whisper transcript:', JSON.stringify(transcript));
 
-      if (transcript.length === 0) {
+      if (isNonSpeechTranscript(transcript)) {
         console.log('[MyVoice] Empty transcript — no speech detected');
         sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, 'No speech detected.');
         resetState();
@@ -226,6 +266,7 @@ function resetState(): void {
   state = 'idle';
   isFinishing = false;
   setRecordingState(false);
+  setCancelShortcutEnabled(false);
   clearSilenceTimer();
 
   // Hide overlay after fade animation

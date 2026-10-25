@@ -18,6 +18,7 @@ import {
   setAutoStopPauseMs,
 } from './dictation-settings';
 import { loadTrayIcon } from './icon';
+import { checkForUpdates } from './update-checker';
 
 let tray: Tray | null = null;
 let isRecording = false;
@@ -59,7 +60,7 @@ function updateTrayMenu(): void {
   const availableDevices = native.listAudioInputDevices();
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'MyVoice',
+      label: `MyVoice ${app.getVersion()}`,
       enabled: false,
     },
     { type: 'separator' },
@@ -219,6 +220,14 @@ function updateTrayMenu(): void {
       ],
     },
     { type: 'separator' },
+    {
+      label: 'Check for Updates…',
+      click: () => {
+        checkForUpdates().catch((error) => {
+          console.error('[MyVoice] Update check failed:', error);
+        });
+      },
+    },
     {
       label: 'Buy Me a Coffee ☕',
       click: () => shell.openExternal('https://buymeacoffee.com/TreyTre'),

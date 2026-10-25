@@ -18,7 +18,7 @@ mkdir -p "$output_dir"
 echo "[MyVoice] Building whisper-cli, native addon and TypeScript"
 bash scripts/build-whisper.sh
 bash scripts/build-native.sh
-npx tsc
+npm run build:ts
 
 echo "[MyVoice] Packaging unsigned universal app into $output_dir"
 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --universal \

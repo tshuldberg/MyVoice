@@ -115,7 +115,7 @@ mkdir -p "$work_dir"
 step "Building whisper-cli, native addon and TypeScript"
 bash scripts/build-whisper.sh
 bash scripts/build-native.sh
-npx tsc
+npm run build:ts
 
 step "Packaging and signing MyVoice.app (universal)"
 # electron-builder wants the certificate name without the type prefix.

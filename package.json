@@ -4,7 +4,7 @@
   "description": "Privacy-first macOS dictation app. Double-tap fn to dictate anywhere.",
   "main": "dist/main/index.js",
   "scripts": {
-    "build:ts": "tsc",
+    "build:ts": "rm -rf dist && tsc",
     "build:whisper": "bash scripts/build-whisper.sh",
     "build:native": "bash scripts/build-native.sh",
     "build:native:host": "bash scripts/build-native.sh --host",

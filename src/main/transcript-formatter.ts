@@ -1,4 +1,5 @@
-import type { FormattingMode } from './formatting-settings';
+/** off: exactly as spoken; basic: sentences and lists; structured: also paragraphs. */
+export type FormattingMode = 'off' | 'basic' | 'structured';
 
 const ORDINAL_WORDS = [
   'first',

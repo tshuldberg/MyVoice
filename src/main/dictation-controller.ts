@@ -23,10 +23,15 @@ import { getDictionary } from './dictionary-settings';
 import { buildVocabularyPrompt } from './dictionary';
 import { processTranscript, stripAnnotations } from './text-pipeline';
 import { runLocalCleanup } from './local-ai';
+import { resolveLocalAi, warmLocalAi } from './local-ai-runtime';
 import { recommendedThreads, transcriptionTimeoutMs } from './whisper-args';
 import { transcribe, type RunningTranscription } from './transcriber';
 import { deliverText, readCaretContext } from './delivery';
 import { duckOutput, playSound, restoreOutput } from './feedback';
+import { FEATURE_FLAGS } from './feature-flags';
+import { BROWSER_URL_SCRIPTS, hostFromUrl, isSupportedBrowser } from './website-context';
+import { chooseInputDevice } from './input-device';
+import { isMeetingActive } from './meeting-recorder';
 import {
   PREVIEW_INTERVAL_MS,
   PREVIEW_TAIL_SECONDS,
@@ -41,6 +46,10 @@ interface Session {
   trigger: DictationTrigger;
   mode: DictationMode;
   app: native.FrontmostApp | null;
+  /** Site in the front browser tab, when website modes are on. */
+  host: string | null;
+  /** Selected text and window title, captured only when the mode allows AI screen context. */
+  screen: native.FocusedSelection | null;
   modelId: ModelId;
   modelPath: string;
   startedAt: number;
@@ -154,18 +163,36 @@ function chooseModel(mode: DictationMode): { modelId: ModelId; modelPath: string
   return modelId && modelPath ? { modelId, modelPath } : null;
 }
 
+/** The front tab's site, read only when website modes are built in, turned on, and the app is a known browser. */
+function frontTabHost(bundleId: string | null, enabled: boolean): string | null {
+  if (!FEATURE_FLAGS.websiteModes || !enabled || !isSupportedBrowser(bundleId)) return null;
+  const url = native.runAppleScript(BROWSER_URL_SCRIPTS[bundleId]);
+  return url ? hostFromUrl(url) : null;
+}
+
 function startDictation(trigger: DictationTrigger): void {
   if (!whisperCli) {
     console.error('[MyVoice] Dictation not initialized — call initDictation() first');
     return;
   }
   if (!checkPermissions()) return;
+  if (isMeetingActive()) {
+    showOverlay();
+    sendToOverlay(IPC_CHANNELS.DICTATION_ERROR, 'Dictation is off while a meeting is being recorded.');
+    resetState();
+    return;
+  }
 
   const prefs = getPreferences();
   const frontmost = native.frontmostApplication();
   // MyVoice's own window counts as "no app", so the practice field uses the selected mode.
   const bundleId = frontmost && frontmost.pid !== process.pid ? frontmost.bundleId : null;
-  const { mode, reason } = resolveMode(getModesState(), bundleId);
+  const host = frontTabHost(bundleId, prefs.websiteModes);
+  const { mode, reason } = resolveMode(getModesState(), bundleId, host);
+  // Read before the overlay appears, while the user's selection is still focused.
+  const screen = FEATURE_FLAGS.aiScreenContext && mode.aiCleanup && mode.aiContext && prefs.localAi.enabled
+    ? native.focusedSelectionContext()
+    : null;
   const model = chooseModel(mode);
   if (!model) {
     showOverlay();
@@ -180,6 +207,8 @@ function startDictation(trigger: DictationTrigger): void {
     trigger,
     mode,
     app: bundleId ? frontmost : null,
+    host,
+    screen,
     ...model,
     startedAt: now,
     lastAudioAboveThreshold: now,
@@ -198,16 +227,23 @@ function startDictation(trigger: DictationTrigger): void {
   setCancelShortcutEnabled(true);
   playSound('start', prefs.sounds);
   duckOutput(prefs.ducking);
+  if (mode.aiCleanup) warmLocalAi(prefs.localAi);
   showOverlay();
 
-  const label = reason === 'app' && current.app ? `${mode.name} · ${current.app.name}` : mode.name;
+  const label = reason === 'website' && host
+    ? `${mode.name} · ${host}`
+    : reason === 'app' && current.app ? `${mode.name} · ${current.app.name}` : mode.name;
   sendToOverlay(IPC_CHANNELS.DICTATION_CONTEXT, label);
   if (model.modelId !== mode.modelId) {
     notice(`${getModel(mode.modelId)?.label ?? mode.modelId} is not downloaded. Using ${getModel(model.modelId)?.label}.`);
   }
 
-  // Apply saved audio input device before recording
-  const audioDeviceUID = getAudioSettings().selectedDeviceUID;
+  // Apply the chosen input before recording (the saved one, or a fallback that avoids Bluetooth)
+  const audio = getAudioSettings();
+  const audioDeviceUID = chooseInputDevice(native.listAudioInputDevices(), {
+    selectedUID: audio.selectedDeviceUID,
+    avoidBluetooth: audio.avoidBluetooth,
+  });
   if (audioDeviceUID) {
     native.setAudioInputDevice(audioDeviceUID);
   } else {
@@ -375,7 +411,19 @@ async function finishSession(target: Session, wavPath: string): Promise<void> {
 
   if (target.mode.aiCleanup && prefs.localAi.enabled) {
     notice('Cleaning up with your local model…', true);
-    const outcome = await runLocalCleanup(prefs.localAi, text, { appName: target.app?.name, modeName: target.mode.name });
+    let aiSettings = prefs.localAi;
+    try {
+      aiSettings = await resolveLocalAi(prefs.localAi);
+    } catch (error) {
+      notice((error as Error).message);
+      aiSettings = { ...prefs.localAi, enabled: false };
+    }
+    const outcome = await runLocalCleanup(aiSettings, text, {
+      appName: target.app?.name,
+      modeName: target.mode.name,
+      windowTitle: target.screen?.windowTitle || undefined,
+      selectedText: target.screen?.selectedText || undefined,
+    }, target.mode.aiInstructions);
     if (outcome.status !== 'cleaned') console.log(`[MyVoice] Local AI cleanup ${outcome.status}: ${outcome.reason}`);
     text = outcome.text;
     if (session !== target || state !== 'stopping') return;
@@ -389,6 +437,7 @@ async function finishSession(target: Session, wavPath: string): Promise<void> {
     modeName: target.mode.name,
     appName: target.app?.name,
     appBundleId: target.app?.bundleId,
+    site: target.host ?? undefined,
     modelId: target.modelId,
     durationMs: audioMs,
     transcribeMs: Date.now() - stoppedAt,

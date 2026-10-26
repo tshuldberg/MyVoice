@@ -33,6 +33,9 @@ Napi::Value RecordStart(const Napi::CallbackInfo& info) {
     Napi::Function onLevel = info[0].As<Napi::Function>();
     Napi::Function onError = info[1].As<Napi::Function>();
 
+    // Optional third argument: true records at about 16 kHz (meetings).
+    [SpeechBridge setLowSampleRate:(info.Length() > 2 && info[2].IsBoolean() && info[2].As<Napi::Boolean>().Value())];
+
     levelTsfn = Napi::ThreadSafeFunction::New(env, onLevel, "AudioLevel", 0, 1);
     errorTsfn = Napi::ThreadSafeFunction::New(env, onError, "Error", 0, 1);
     recordingActive = true;
@@ -181,6 +184,8 @@ Napi::Value ListAudioInputDevices(const Napi::CallbackInfo& info) {
         Napi::Object obj = Napi::Object::New(env);
         obj.Set("uid", Napi::String::New(env, [device[@"uid"] UTF8String]));
         obj.Set("name", Napi::String::New(env, [device[@"name"] UTF8String]));
+        obj.Set("transport", Napi::String::New(env, [device[@"transport"] UTF8String]));
+        obj.Set("isDefault", Napi::Boolean::New(env, [device[@"isDefault"] boolValue]));
         result.Set(i, obj);
     }
     return result;
@@ -197,6 +202,34 @@ Napi::Value SetAudioInputDevice(const Napi::CallbackInfo& info) {
 Napi::Value ClearAudioInputDevice(const Napi::CallbackInfo& info) {
     [SpeechBridge clearAudioInputDevice];
     return info.Env().Undefined();
+}
+
+// --- Meeting: system audio -----------------------------------------------
+
+static Napi::ThreadSafeFunction meetingStartTsfn;
+
+Napi::Value MeetingStart(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    meetingStartTsfn = Napi::ThreadSafeFunction::New(env, info[0].As<Napi::Function>(), "MeetingStart", 0, 1);
+    [MeetingBridge startSystemAudioWithCompletion:^(NSString *error) {
+        std::string message = error ? [error UTF8String] : "";
+        meetingStartTsfn.NonBlockingCall([message](Napi::Env env, Napi::Function cb) {
+            cb.Call({message.empty() ? env.Null() : Napi::String::New(env, message)});
+        });
+        meetingStartTsfn.Release();
+    }];
+    return env.Undefined();
+}
+
+Napi::Value MeetingStop(const Napi::CallbackInfo& info) {
+    std::string path = info[0].As<Napi::String>().Utf8Value();
+    NSString *written = [MeetingBridge stopSystemAudioAndSaveToPath:[NSString stringWithUTF8String:path.c_str()]];
+    if (!written) return info.Env().Null();
+    return Napi::String::New(info.Env(), [written UTF8String]);
+}
+
+Napi::Value MeetingIsRecording(const Napi::CallbackInfo& info) {
+    return Napi::Boolean::New(info.Env(), [MeetingBridge isRecording]);
 }
 
 // --- System: frontmost app, caret context, pasteboard, volume ----------
@@ -222,6 +255,23 @@ Napi::Value FocusedTextContext(const Napi::CallbackInfo& info) {
     result.Set("atStart", Napi::Boolean::New(env, [context[@"atStart"] boolValue]));
     result.Set("hasSelection", Napi::Boolean::New(env, [context[@"hasSelection"] boolValue]));
     return result;
+}
+
+Napi::Value FocusedSelectionContext(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    NSDictionary *context = [SystemBridge focusedSelectionContext];
+    if (!context) return env.Null();
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("windowTitle", Napi::String::New(env, [context[@"windowTitle"] UTF8String]));
+    result.Set("selectedText", Napi::String::New(env, [context[@"selectedText"] UTF8String]));
+    return result;
+}
+
+Napi::Value RunAppleScript(const Napi::CallbackInfo& info) {
+    std::string source = info[0].As<Napi::String>().Utf8Value();
+    NSString *result = [SystemBridge runAppleScript:[NSString stringWithUTF8String:source.c_str()]];
+    if (!result) return info.Env().Null();
+    return Napi::String::New(info.Env(), [result UTF8String]);
 }
 
 Napi::Value PasteboardSave(const Napi::CallbackInfo& info) {
@@ -275,9 +325,16 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("keyboardCheckPermission", Napi::Function::New(env, KeyboardCheckPermission));
     exports.Set("keyboardRequestPermission", Napi::Function::New(env, KeyboardRequestPermission));
 
+    // Meeting
+    exports.Set("meetingStart", Napi::Function::New(env, MeetingStart));
+    exports.Set("meetingStop", Napi::Function::New(env, MeetingStop));
+    exports.Set("meetingIsRecording", Napi::Function::New(env, MeetingIsRecording));
+
     // System
     exports.Set("frontmostApplication", Napi::Function::New(env, FrontmostApplication));
     exports.Set("focusedTextContext", Napi::Function::New(env, FocusedTextContext));
+    exports.Set("focusedSelectionContext", Napi::Function::New(env, FocusedSelectionContext));
+    exports.Set("runAppleScript", Napi::Function::New(env, RunAppleScript));
     exports.Set("pasteboardSave", Napi::Function::New(env, PasteboardSave));
     exports.Set("pasteboardWriteText", Napi::Function::New(env, PasteboardWriteText));
     exports.Set("pasteboardRestoreIfUnchanged", Napi::Function::New(env, PasteboardRestoreIfUnchanged));

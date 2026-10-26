@@ -11,6 +11,8 @@
                            onError:(void (^)(NSString *error))errorCallback;
 + (NSString *)stopAndSaveRecording;
 + (NSString *)snapshotRecordingToPath:(NSString *)path maxSeconds:(double)maxSeconds;
++ (NSData *)wavDataFromPCM:(NSData *)pcm sampleRate:(double)sampleRate;
++ (void)setLowSampleRate:(BOOL)enabled;
 + (void)stopRecognition;
 + (NSArray<NSDictionary *> *)listAudioInputDevices;
 + (BOOL)setAudioInputDeviceUID:(NSString *)deviceUID;
@@ -32,10 +34,19 @@
 + (void)requestAccessibilityPermission;
 @end
 
+// System audio for meeting recordings (ScreenCaptureKit)
+@interface MeetingBridge : NSObject
++ (void)startSystemAudioWithCompletion:(void (^)(NSString *error))completion;
++ (NSString *)stopSystemAudioAndSaveToPath:(NSString *)path;
++ (BOOL)isRecording;
+@end
+
 // Frontmost app, caret context, pasteboard and output volume
 @interface SystemBridge : NSObject
 + (NSDictionary *)frontmostApplication;
 + (NSDictionary *)focusedTextContext;
++ (NSDictionary *)focusedSelectionContext;
++ (NSString *)runAppleScript:(NSString *)source;
 + (NSInteger)pasteboardSave;
 + (NSInteger)pasteboardWriteText:(NSString *)text;
 + (BOOL)pasteboardRestoreIfUnchanged:(NSInteger)expectedChangeCount;

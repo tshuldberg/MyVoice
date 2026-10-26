@@ -18,6 +18,10 @@ static id configObserver;
 static NSString *selectedDeviceUID;
 // pcmData is appended on the audio thread and read by snapshots on the main thread.
 static NSObject *pcmLock;
+// Long recordings (meetings) keep about 16 kHz instead of the hardware rate
+// to bound memory; each output sample averages `decimation` input samples.
+static BOOL lowSampleRate = NO;
+static UInt32 decimation = 1;
 
 static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
     uint32_t dataSize = (uint32_t)pcm.length;
@@ -134,7 +138,8 @@ static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
     @synchronized (pcmLock) {
         pcmData = [NSMutableData data];
     }
-    recordingSampleRate = inputFormat.sampleRate;
+    decimation = lowSampleRate ? MAX(1, (UInt32)floor(inputFormat.sampleRate / 16000.0)) : 1;
+    recordingSampleRate = inputFormat.sampleRate / decimation;
 
     NSLog(@"[MyVoice] Recording at %.0fHz for Whisper (will resample internally)",
           recordingSampleRate);
@@ -149,8 +154,22 @@ static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
         UInt32 frameLength = buffer.frameLength;
 
         // Append first channel's PCM float data for WAV file
-        @synchronized (pcmLock) {
-            [pcmData appendBytes:channelData length:frameLength * sizeof(float)];
+        if (decimation > 1) {
+            UInt32 outFrames = frameLength / decimation;
+            float *reduced = malloc(MAX(1, outFrames) * sizeof(float));
+            for (UInt32 i = 0; i < outFrames; i++) {
+                float sum = 0;
+                for (UInt32 j = 0; j < decimation; j++) sum += channelData[i * decimation + j];
+                reduced[i] = sum / (float)decimation;
+            }
+            @synchronized (pcmLock) {
+                [pcmData appendBytes:reduced length:outFrames * sizeof(float)];
+            }
+            free(reduced);
+        } else {
+            @synchronized (pcmLock) {
+                [pcmData appendBytes:channelData length:frameLength * sizeof(float)];
+            }
         }
 
         // Calculate RMS level for waveform visualization
@@ -218,6 +237,14 @@ static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
     return tempPath;
 }
 
++ (void)setLowSampleRate:(BOOL)enabled {
+    lowSampleRate = enabled;
+}
+
++ (NSData *)wavDataFromPCM:(NSData *)pcm sampleRate:(double)sampleRate {
+    return wavDataFromPCM(pcm, sampleRate);
+}
+
 + (NSString *)snapshotRecordingToPath:(NSString *)path maxSeconds:(double)maxSeconds {
     NSData *pcm;
     @synchronized (pcmLock) {
@@ -272,6 +299,15 @@ static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
 
     NSMutableArray<NSDictionary *> *results = [NSMutableArray array];
 
+    AudioObjectPropertyAddress defaultAddr = {
+        kAudioHardwarePropertyDefaultInputDevice,
+        kAudioObjectPropertyScopeGlobal,
+        kAudioObjectPropertyElementMain
+    };
+    AudioDeviceID defaultInputId = kAudioObjectUnknown;
+    UInt32 defaultSize = sizeof(defaultInputId);
+    AudioObjectGetPropertyData(kAudioObjectSystemObject, &defaultAddr, 0, NULL, &defaultSize, &defaultInputId);
+
     for (UInt32 i = 0; i < deviceCount; i++) {
         AudioDeviceID deviceId = deviceIds[i];
 
@@ -310,9 +346,27 @@ static NSData *wavDataFromPCM(NSData *pcm, double sampleRate) {
             continue;
         }
 
+        // Transport type tells Bluetooth headsets apart from built-in and USB microphones.
+        AudioObjectPropertyAddress transportAddr = {
+            kAudioDevicePropertyTransportType,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        UInt32 transport = 0;
+        UInt32 transportSize = sizeof(transport);
+        NSString *transportName = @"other";
+        if (AudioObjectGetPropertyData(deviceId, &transportAddr, 0, NULL, &transportSize, &transport) == noErr) {
+            if (transport == kAudioDeviceTransportTypeBuiltIn) transportName = @"built-in";
+            else if (transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE) transportName = @"bluetooth";
+            else if (transport == kAudioDeviceTransportTypeUSB) transportName = @"usb";
+            else if (transport == kAudioDeviceTransportTypeVirtual || transport == kAudioDeviceTransportTypeAggregate) transportName = @"virtual";
+        }
+
         [results addObject:@{
             @"uid": (__bridge_transfer NSString *)uidRef,
             @"name": (__bridge_transfer NSString *)nameRef,
+            @"transport": transportName,
+            @"isDefault": @(deviceId == defaultInputId),
         }];
     }
 

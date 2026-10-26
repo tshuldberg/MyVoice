@@ -20,6 +20,7 @@ const IPC_CHANNELS = {
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
   APP_SET_TRIGGER_SHORTCUT: 'app:set-trigger-shortcut',
   APP_SET_AUDIO_DEVICE: 'app:set-audio-device',
+  APP_SET_AVOID_BLUETOOTH: 'app:set-avoid-bluetooth',
   APP_GET_TODAY_LOG: 'app:get-today-log',
   APP_GET_LOG_BY_DATE: 'app:get-log-by-date',
   APP_LIST_LOG_DATES: 'app:list-log-dates',
@@ -37,6 +38,8 @@ const IPC_CHANNELS = {
   MODES_DELETE: 'app:modes-delete',
   MODES_ADD_APP: 'app:modes-add-app',
   MODES_REMOVE_APP: 'app:modes-remove-app',
+  MODES_ADD_DOMAIN: 'app:modes-add-domain',
+  MODES_REMOVE_DOMAIN: 'app:modes-remove-domain',
   DICTIONARY_ADD_TERM: 'app:dictionary-add-term',
   DICTIONARY_REMOVE_TERM: 'app:dictionary-remove-term',
   DICTIONARY_UPSERT_RULE: 'app:dictionary-upsert-rule',
@@ -58,6 +61,10 @@ const IPC_CHANNELS = {
   FILE_CANCEL: 'app:file-cancel',
   FILE_PROGRESS: 'app:file-progress',
   AI_TEST: 'app:ai-test',
+  AI_CHOOSE_MODEL: 'app:ai-choose-model',
+  MEETING_START: 'app:meeting-start',
+  MEETING_STOP: 'app:meeting-stop',
+  MEETING_STATUS: 'app:meeting-status',
 } as const;
 
 type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -85,6 +92,7 @@ const receiveChannels = new Set<IpcChannel>([
   IPC_CHANNELS.APP_STATE_CHANGED,
   IPC_CHANNELS.MODELS_UPDATED,
   IPC_CHANNELS.FILE_PROGRESS,
+  IPC_CHANNELS.MEETING_STATUS,
 ]);
 
 const invokeChannels = new Set<IpcChannel>([
@@ -94,6 +102,7 @@ const invokeChannels = new Set<IpcChannel>([
   IPC_CHANNELS.APP_SET_WAVEFORM_DEBUG,
   IPC_CHANNELS.APP_SET_TRIGGER_SHORTCUT,
   IPC_CHANNELS.APP_SET_AUDIO_DEVICE,
+  IPC_CHANNELS.APP_SET_AVOID_BLUETOOTH,
   IPC_CHANNELS.APP_GET_TODAY_LOG,
   IPC_CHANNELS.APP_GET_LOG_BY_DATE,
   IPC_CHANNELS.APP_LIST_LOG_DATES,
@@ -108,6 +117,8 @@ const invokeChannels = new Set<IpcChannel>([
   IPC_CHANNELS.MODES_DELETE,
   IPC_CHANNELS.MODES_ADD_APP,
   IPC_CHANNELS.MODES_REMOVE_APP,
+  IPC_CHANNELS.MODES_ADD_DOMAIN,
+  IPC_CHANNELS.MODES_REMOVE_DOMAIN,
   IPC_CHANNELS.DICTIONARY_ADD_TERM,
   IPC_CHANNELS.DICTIONARY_REMOVE_TERM,
   IPC_CHANNELS.DICTIONARY_UPSERT_RULE,
@@ -127,6 +138,9 @@ const invokeChannels = new Set<IpcChannel>([
   IPC_CHANNELS.FILE_TRANSCRIBE,
   IPC_CHANNELS.FILE_CANCEL,
   IPC_CHANNELS.AI_TEST,
+  IPC_CHANNELS.AI_CHOOSE_MODEL,
+  IPC_CHANNELS.MEETING_START,
+  IPC_CHANNELS.MEETING_STOP,
 ]);
 
 // Drag and drop: the renderer cannot see file paths, so the preload resolves them.

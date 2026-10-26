@@ -122,3 +122,45 @@ test('the number of modes is capped', () => {
   assert.equal(state.modes.length, MODE_LIMITS.count);
   assert.equal(BUILT_IN_MODES.length, 3);
 });
+
+test('websites pick a mode before apps, most specific site first', async () => {
+  const { assignDomain, unassignDomain } = await import('../dist/main/modes.js');
+  let state = createMode(fresh(), 'Mail', 'mode-mail');
+  state = createMode(state, 'Docs', 'mode-docs');
+  state = assignDomain(state, 'mode-mail', 'https://mail.google.com/mail/u/0');
+  state = assignDomain(state, 'mode-docs', 'google.com');
+  state = assignApp(state, 'notes', { bundleId: 'com.google.Chrome', name: 'Chrome' });
+  assert.deepEqual(
+    [resolveMode(state, 'com.google.Chrome', 'mail.google.com').mode.id, resolveMode(state, 'com.google.Chrome', 'mail.google.com').reason],
+    ['mode-mail', 'website'],
+  );
+  assert.equal(resolveMode(state, 'com.google.Chrome', 'docs.google.com').mode.id, 'mode-docs');
+  assert.deepEqual([resolveMode(state, 'com.google.Chrome', 'example.com').mode.id, resolveMode(state, 'com.google.Chrome', null).reason], ['notes', 'app']);
+  state = unassignDomain(state, 'mode-mail', 'mail.google.com');
+  assert.equal(resolveMode(state, 'com.google.Chrome', 'mail.google.com').mode.id, 'mode-docs');
+});
+
+test('a website belongs to one mode, and invalid sites are ignored', async () => {
+  const { assignDomain } = await import('../dist/main/modes.js');
+  let state = createMode(fresh(), 'A', 'mode-a');
+  state = assignDomain(state, 'default', 'slack.com');
+  state = assignDomain(state, 'mode-a', 'Slack.com');
+  assert.deepEqual(state.modes[0].domains, []);
+  assert.deepEqual(state.modes.at(-1).domains, ['slack.com']);
+  assert.deepEqual(assignDomain(state, 'mode-a', 'not a site'), state);
+});
+
+test('AI instructions, AI context and fuzzy vocabulary are stored per mode and default off', () => {
+  const mode = fresh().modes[0];
+  assert.deepEqual([mode.aiInstructions, mode.aiContext, mode.pipeline.fuzzyVocabulary, mode.domains], ['', false, false, []]);
+  const updated = updateMode(fresh(), 'default', {
+    aiInstructions: `  ${'x'.repeat(3000)}  `,
+    aiContext: true,
+    pipeline: { fuzzyVocabulary: true },
+    domains: ['https://www.notion.so/page', 'bad domain'],
+  }).modes[0];
+  assert.equal(updated.aiInstructions.length, 2000);
+  assert.equal(updated.aiContext, true);
+  assert.equal(updated.pipeline.fuzzyVocabulary, true);
+  assert.deepEqual(updated.domains, ['notion.so']);
+});

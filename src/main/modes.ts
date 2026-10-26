@@ -1,6 +1,7 @@
 import type { FormattingMode } from './transcript-formatter';
 import { DEFAULT_PIPELINE_OPTIONS, type PipelineOptions } from './text-pipeline';
 import { DEFAULT_MODEL_ID, isLanguageCode, isModelId, type ModelId } from './model-catalog';
+import { bestDomainMatch, normalizeDomain } from './website-context';
 
 // Modes bundle everything that differs between kinds of dictation: model,
 // language, text cleanup and how the result is delivered. A mode can switch on
@@ -27,8 +28,14 @@ export interface DictationMode {
   pressReturn: boolean;
   /** Apps that switch to this mode while they are frontmost. */
   apps: AppRef[];
+  /** Websites (host names) that switch to this mode in the front browser tab. */
+  domains: string[];
   /** Run the optional local AI cleanup step (local-ai.ts) when it is configured. */
   aiCleanup: boolean;
+  /** Instructions for the local AI in this mode; empty uses the standard cleanup. */
+  aiInstructions: string;
+  /** Let the local AI see the selected text and window title (FEATURE_FLAGS.aiScreenContext). */
+  aiContext: boolean;
 }
 
 export interface ModesState {
@@ -36,7 +43,7 @@ export interface ModesState {
   selectedModeId: string;
 }
 
-export const MODE_LIMITS = { count: 30, nameLength: 40, appsPerMode: 50 };
+export const MODE_LIMITS = { count: 30, nameLength: 40, appsPerMode: 50, domainsPerMode: 50, aiInstructionsLength: 2000 };
 
 const TERMINAL_APPS: AppRef[] = [
   { bundleId: 'com.apple.Terminal', name: 'Terminal' },
@@ -57,7 +64,10 @@ function builtIn(id: string, name: string, overrides: Partial<DictationMode>, pi
     insertion: 'paste',
     pressReturn: false,
     apps: [],
+    domains: [],
     aiCleanup: false,
+    aiInstructions: '',
+    aiContext: false,
     ...overrides,
   };
 }
@@ -95,6 +105,17 @@ function normalizeApps(raw: unknown): AppRef[] {
   return apps;
 }
 
+function normalizeDomains(raw: unknown): string[] {
+  const domains: string[] = [];
+  for (const entry of Array.isArray(raw) ? raw : []) {
+    const domain = normalizeDomain(entry);
+    if (!domain || domains.includes(domain)) continue;
+    domains.push(domain);
+    if (domains.length >= MODE_LIMITS.domainsPerMode) break;
+  }
+  return domains;
+}
+
 function normalizePipeline(raw: unknown, fallback: PipelineOptions): PipelineOptions {
   const data = (raw && typeof raw === 'object' ? raw : {}) as Partial<PipelineOptions>;
   const bool = (value: unknown, defaultValue: boolean): boolean => (typeof value === 'boolean' ? value : defaultValue);
@@ -104,6 +125,8 @@ function normalizePipeline(raw: unknown, fallback: PipelineOptions): PipelineOpt
     spokenCommands: bool(data.spokenCommands, fallback.spokenCommands),
     spokenPunctuation: bool(data.spokenPunctuation, fallback.spokenPunctuation),
     useDictionary: bool(data.useDictionary, fallback.useDictionary),
+    fuzzyVocabulary: bool(data.fuzzyVocabulary, fallback.fuzzyVocabulary),
+    spelling: data.spelling === 'uk' || data.spelling === 'us' ? data.spelling : fallback.spelling,
   };
 }
 
@@ -120,19 +143,30 @@ function normalizeMode(raw: unknown, fallback: DictationMode): DictationMode {
     insertion: INSERTION_METHODS.includes(data.insertion as InsertionMethod) ? data.insertion as InsertionMethod : fallback.insertion,
     pressReturn: typeof data.pressReturn === 'boolean' ? data.pressReturn : fallback.pressReturn,
     apps: data.apps === undefined ? fallback.apps : normalizeApps(data.apps),
+    domains: data.domains === undefined ? fallback.domains : normalizeDomains(data.domains),
     aiCleanup: typeof data.aiCleanup === 'boolean' ? data.aiCleanup : fallback.aiCleanup,
+    aiInstructions: typeof data.aiInstructions === 'string'
+      ? data.aiInstructions.trim().slice(0, MODE_LIMITS.aiInstructionsLength)
+      : fallback.aiInstructions,
+    aiContext: typeof data.aiContext === 'boolean' ? data.aiContext : fallback.aiContext,
   };
 }
 
-/** An app belongs to at most one mode; the first mode that lists it keeps it. */
+/** An app or website belongs to at most one mode; the first mode that lists it keeps it. */
 function dedupeApps(modes: DictationMode[]): DictationMode[] {
-  const claimed = new Set<string>();
+  const claimedApps = new Set<string>();
+  const claimedDomains = new Set<string>();
   return modes.map((mode) => ({
     ...mode,
     apps: mode.apps.filter((entry) => {
       const key = entry.bundleId.toLowerCase();
-      if (claimed.has(key)) return false;
-      claimed.add(key);
+      if (claimedApps.has(key)) return false;
+      claimedApps.add(key);
+      return true;
+    }),
+    domains: mode.domains.filter((domain) => {
+      if (claimedDomains.has(domain)) return false;
+      claimedDomains.add(domain);
       return true;
     }),
   }));
@@ -162,7 +196,7 @@ export function normalizeModesState(raw: unknown, legacyFormatting?: FormattingM
   for (const [id, entry] of storedById) {
     if (BUILT_IN_MODES.some((mode) => mode.id === id) || !/^[a-z0-9-]{1,64}$/.test(id)) continue;
     if (modes.length >= MODE_LIMITS.count) break;
-    modes.push(normalizeMode(entry, { ...BUILT_IN_MODES[0], id, name: 'Custom', builtIn: false, apps: [] }));
+    modes.push(normalizeMode(entry, { ...BUILT_IN_MODES[0], id, name: 'Custom', builtIn: false, apps: [], domains: [] }));
   }
 
   const selectedModeId = modes.some((mode) => mode.id === data.selectedModeId)
@@ -173,12 +207,18 @@ export function normalizeModesState(raw: unknown, legacyFormatting?: FormattingM
 
 export interface ResolvedMode {
   mode: DictationMode;
-  /** 'app' when the frontmost app switched modes, 'selected' otherwise. */
-  reason: 'app' | 'selected';
+  /** What chose the mode: the front browser tab's site, the frontmost app, or the user's selection. */
+  reason: 'website' | 'app' | 'selected';
 }
 
-/** The mode for a dictation: the mode assigned to the frontmost app, else the selected one. */
-export function resolveMode(state: ModesState, frontmostBundleId: string | null): ResolvedMode {
+/**
+ * The mode for a dictation, most specific first: the site in the front
+ * browser tab (when website modes are on and `host` is known), the frontmost
+ * app, then the selected mode.
+ */
+export function resolveMode(state: ModesState, frontmostBundleId: string | null, host: string | null = null): ResolvedMode {
+  const bySite = bestDomainMatch(state.modes, host);
+  if (bySite) return { mode: bySite, reason: 'website' };
   if (frontmostBundleId) {
     const key = frontmostBundleId.toLowerCase();
     const byApp = state.modes.find((mode) => mode.apps.some((entry) => entry.bundleId.toLowerCase() === key));
@@ -196,7 +236,7 @@ export function selectMode(state: ModesState, id: string): ModesState {
 export function createMode(state: ModesState, name: string, newId: string, basedOnId = 'default'): ModesState {
   if (state.modes.length >= MODE_LIMITS.count) return state;
   const base = state.modes.find((mode) => mode.id === basedOnId) ?? state.modes[0];
-  const mode: DictationMode = { ...base, id: newId, name: clipName(name, 'New Mode'), builtIn: false, apps: [] };
+  const mode: DictationMode = { ...base, id: newId, name: clipName(name, 'New Mode'), builtIn: false, apps: [], domains: [] };
   return normalizeModesState({ ...state, modes: [...state.modes, mode], selectedModeId: newId });
 }
 
@@ -232,6 +272,24 @@ export function unassignApp(state: ModesState, modeId: string, bundleId: string)
   const key = bundleId.toLowerCase();
   const modes = state.modes.map((mode) => (mode.id === modeId
     ? { ...mode, apps: mode.apps.filter((entry) => entry.bundleId.toLowerCase() !== key) }
+    : mode));
+  return normalizeModesState({ ...state, modes });
+}
+
+/** Assigns a website to one mode, taking it away from any other mode. Invalid input changes nothing. */
+export function assignDomain(state: ModesState, modeId: string, value: string): ModesState {
+  const domain = normalizeDomain(value);
+  if (!domain) return state;
+  const modes = state.modes.map((mode) => {
+    const others = mode.domains.filter((entry) => entry !== domain);
+    return mode.id === modeId ? { ...mode, domains: [...others, domain] } : { ...mode, domains: others };
+  });
+  return normalizeModesState({ ...state, modes });
+}
+
+export function unassignDomain(state: ModesState, modeId: string, domain: string): ModesState {
+  const modes = state.modes.map((mode) => (mode.id === modeId
+    ? { ...mode, domains: mode.domains.filter((entry) => entry !== domain) }
     : mode));
   return normalizeModesState({ ...state, modes });
 }

@@ -104,3 +104,24 @@ test('failures fall back to the original text', async () => {
     assert.equal(outcome.text, text);
   });
 });
+
+test('screen context and mode instructions shape the request', () => {
+  const body = buildCleanupRequest(DEFAULT_LOCAL_AI, 'sounds good see you then', {
+    appName: 'Mail',
+    windowTitle: 'Re: Lunch on Friday',
+    selectedText: 'Can you do lunch on Friday?',
+  }, 'Write a short, friendly email reply.');
+  const system = body.messages[0].content;
+  assert.match(system, /^Write a short, friendly email reply\. The text will be inserted into Mail\./);
+  assert.match(system, /\n\nWindow title: Re: Lunch on Friday/);
+  assert.match(system, /<selected>\nCan you do lunch on Friday\?\n<\/selected>/);
+  assert.doesNotMatch(system, /Clean up this dictated text/);
+});
+
+test('custom instructions allow longer replies but still refuse runaway output', () => {
+  const original = 'tell them yes and suggest noon';
+  const reply = 'Hi Sam, yes, Friday works for me. How about noon at the usual place? Looking forward to it. Best, Trey';
+  assert.equal(acceptCleanup(original, reply), false);
+  assert.equal(acceptCleanup(original, reply, 'custom'), true);
+  assert.equal(acceptCleanup(original, Array(500).fill('word').join(' '), 'custom'), false);
+});

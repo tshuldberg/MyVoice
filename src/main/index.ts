@@ -13,6 +13,7 @@ import {
 import { ensureWhisperReady, warmUpWhisper } from './dependency-setup';
 import { broadcastAppState, createAppWindow, showAppWindow } from './app-window';
 import { setFileTranscriber } from './file-transcription';
+import { setMeetingTranscriber } from './meeting-recorder';
 import { loadDockIcon } from './icon';
 import { getHotkeySettings } from './hotkey-settings';
 import { applyTriggerShortcut, clearTriggerShortcut, pasteLastShortcut, setTriggerShortcutHandler } from './trigger-shortcut';
@@ -25,6 +26,8 @@ import { parseControlUrl } from './control-url';
 import { updateModesState } from './modes-settings';
 import { selectMode } from './modes';
 import { purgeRecordingLogs } from './recording-log';
+import { startAutomaticUpdateChecks } from './update-checker';
+import { stopLocalAi } from './local-ai-runtime';
 
 function installEpipeGuards(): void {
   const installGuard = (stream: NodeJS.WriteStream | undefined): void => {
@@ -122,6 +125,7 @@ app.whenReady().then(async () => {
   const whisperPaths = await ensureWhisperReady();
   warmUpWhisper(whisperPaths);
   setFileTranscriber(whisperPaths.whisperCli);
+  setMeetingTranscriber(whisperPaths.whisperCli);
 
   const prefs = getPreferences();
   purgeRecordingLogs(prefs.historyRetentionDays);
@@ -171,6 +175,8 @@ app.whenReady().then(async () => {
     showAppWindow('setup');
   }
 
+  startAutomaticUpdateChecks();
+
   ready = true;
   pendingUrls.splice(0).forEach(handleControlUrl);
   console.log('MyVoice is running. Double-tap fn to dictate.');
@@ -181,6 +187,7 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
+  stopLocalAi();
   stopFnTrigger();
   clearTriggerShortcut();
   pasteLastShortcut.clear();

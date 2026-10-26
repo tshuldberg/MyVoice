@@ -6,10 +6,12 @@ import { randomBytes } from 'crypto';
 import { getModesState, updateModesState } from './modes-settings';
 import {
   assignApp,
+  assignDomain,
   createMode,
   deleteMode,
   selectMode,
   unassignApp,
+  unassignDomain,
   updateMode,
   type AppRef,
   type DictationMode,
@@ -43,10 +45,14 @@ import {
 import { processTranscript } from './text-pipeline';
 import { SUPPORTED_AUDIO_EXTENSIONS } from './audio-file';
 import { cancelFileTranscription, transcribeFile } from './file-transcription';
+import { getMeetingStatus, onMeetingAutoStop, onMeetingStatus, startMeeting, stopMeeting, type MeetingStatus } from './meeting-recorder';
 import { runLocalCleanup } from './local-ai';
+import { resolveLocalAi } from './local-ai-runtime';
 import { setTriggerStyle } from './fn-trigger';
 import { pasteLastShortcut } from './trigger-shortcut';
 import { updateTrayMenu } from './tray';
+import { FEATURE_FLAGS, type FeatureFlags } from './feature-flags';
+import { isGgufFile } from './local-engine';
 
 export const FEATURE_CHANNELS = {
   MODES_SELECT: 'app:modes-select',
@@ -55,6 +61,8 @@ export const FEATURE_CHANNELS = {
   MODES_DELETE: 'app:modes-delete',
   MODES_ADD_APP: 'app:modes-add-app',
   MODES_REMOVE_APP: 'app:modes-remove-app',
+  MODES_ADD_DOMAIN: 'app:modes-add-domain',
+  MODES_REMOVE_DOMAIN: 'app:modes-remove-domain',
   DICTIONARY_ADD_TERM: 'app:dictionary-add-term',
   DICTIONARY_REMOVE_TERM: 'app:dictionary-remove-term',
   DICTIONARY_UPSERT_RULE: 'app:dictionary-upsert-rule',
@@ -76,6 +84,10 @@ export const FEATURE_CHANNELS = {
   FILE_CANCEL: 'app:file-cancel',
   FILE_PROGRESS: 'app:file-progress',
   AI_TEST: 'app:ai-test',
+  AI_CHOOSE_MODEL: 'app:ai-choose-model',
+  MEETING_START: 'app:meeting-start',
+  MEETING_STOP: 'app:meeting-stop',
+  MEETING_STATUS: 'app:meeting-status',
 } as const;
 
 export interface FeatureState {
@@ -86,6 +98,8 @@ export interface FeatureState {
   preferences: Preferences;
   stats: HistoryStatsSummary;
   recentApps: AppRef[];
+  flags: FeatureFlags;
+  meeting: MeetingStatus;
   options: {
     retentionDays: typeof RETENTION_OPTIONS;
     maxRecordingMinutes: typeof MAX_RECORDING_OPTIONS;
@@ -107,6 +121,8 @@ export function getFeatureState(): FeatureState {
     preferences: getPreferences(),
     stats: getHistoryStats(),
     recentApps: recentDictationApps(),
+    flags: FEATURE_FLAGS,
+    meeting: getMeetingStatus(),
     options: {
       retentionDays: RETENTION_OPTIONS,
       maxRecordingMinutes: MAX_RECORDING_OPTIONS,
@@ -166,6 +182,11 @@ export function registerFeatureHandlers(getAppState: () => unknown, getWindow: (
   };
 
   onModelStatusChange((status) => send(C.MODELS_UPDATED, status));
+  onMeetingStatus((status) => {
+    send(C.MEETING_STATUS, status);
+    updateTrayMenu();
+  });
+  onMeetingAutoStop(() => send(C.MEETING_STATUS, getMeetingStatus()));
 
   // --- Modes
   ipcMain.handle(C.MODES_SELECT, (_event, id: string) => changedModes((state) => selectMode(state, asText(id, 64))));
@@ -181,6 +202,10 @@ export function registerFeatureHandlers(getAppState: () => unknown, getWindow: (
   });
   ipcMain.handle(C.MODES_REMOVE_APP, (_event, payload: { modeId?: string; bundleId?: string }) =>
     changedModes((state) => unassignApp(state, asText(payload?.modeId, 64), asText(payload?.bundleId, 200))));
+  ipcMain.handle(C.MODES_ADD_DOMAIN, (_event, payload: { modeId?: string; domain?: string }) =>
+    changedModes((state) => assignDomain(state, asText(payload?.modeId, 64), asText(payload?.domain, 300))));
+  ipcMain.handle(C.MODES_REMOVE_DOMAIN, (_event, payload: { modeId?: string; domain?: string }) =>
+    changedModes((state) => unassignDomain(state, asText(payload?.modeId, 64), asText(payload?.domain, 300))));
 
   // --- Dictionary
   ipcMain.handle(C.DICTIONARY_ADD_TERM, (_event, term: string) => {
@@ -312,10 +337,45 @@ export function registerFeatureHandlers(getAppState: () => unknown, getWindow: (
     return { ok: true };
   });
 
+  // --- Meetings
+  ipcMain.handle(C.MEETING_START, async () => {
+    const error = await startMeeting();
+    return { ok: error === null, error };
+  });
+  ipcMain.handle(C.MEETING_STOP, async () => {
+    try {
+      const result = await stopMeeting();
+      return { ok: true, text: result.text };
+    } catch (error) {
+      return { ok: false, error: String((error as Error)?.message ?? error) };
+    }
+  });
+
   // --- Local AI
   ipcMain.handle(C.AI_TEST, async () => {
-    const settings = { ...getPreferences().localAi, enabled: true };
     const sample = 'um so this is a quick test of the the local model cleanup';
-    return runLocalCleanup(settings, sample, { modeName: 'Test' });
+    try {
+      const settings = await resolveLocalAi({ ...getPreferences().localAi, enabled: true });
+      return runLocalCleanup(settings, sample, { modeName: 'Test' });
+    } catch (error) {
+      return { status: 'failed', text: sample, reason: (error as Error).message };
+    }
+  });
+  ipcMain.handle(C.AI_CHOOSE_MODEL, async () => {
+    const window = getWindow();
+    const options: Electron.OpenDialogOptions = {
+      title: 'Choose a Model File',
+      properties: ['openFile'],
+      filters: [{ name: 'GGUF model', extensions: ['gguf'] }],
+    };
+    const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+    const file = result.filePaths[0];
+    if (result.canceled || !file) return getAppState();
+    if (!isGgufFile(file)) {
+      await dialog.showMessageBox({ type: 'warning', message: 'That file is not a GGUF model.', buttons: ['OK'] });
+      return getAppState();
+    }
+    updatePreferences({ localAi: { ...getPreferences().localAi, modelFile: file, engine: 'built-in' } });
+    return getAppState();
   });
 }

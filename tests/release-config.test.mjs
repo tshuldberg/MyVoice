@@ -12,7 +12,7 @@ const builder = json('electron-builder.json');
 
 test('the release is one universal DMG with the bundled speech engine', () => {
   assert.deepEqual(builder.mac.target, [{ target: 'dmg', arch: ['universal'] }]);
-  assert.deepEqual(builder.extraResources, [{ from: 'resources/bin', to: 'bin', filter: ['whisper-cli'] }]);
+  assert.deepEqual(builder.extraResources[0], { from: 'resources/bin', to: 'bin', filter: ['whisper-cli', 'llama-server'] });
   assert.equal(builder.mac.minimumSystemVersion, '13.0');
 });
 
@@ -53,6 +53,13 @@ test('Electron fuses block using the signed app as a generic Node runtime', () =
   });
 });
 
+test('the history CLI and MCP server ship next to the history module they use', () => {
+  assert.deepEqual(builder.extraResources.slice(1), [
+    { from: 'cli/myvoice-history.js', to: 'cli/myvoice-history.js' },
+    { from: 'dist/main/history-core.js', to: 'cli/history-core.js' },
+  ]);
+});
+
 test('the myvoice:// scheme is registered for Shortcuts and scripts', () => {
   assert.deepEqual(builder.protocols, [{ name: 'MyVoice Control', schemes: ['myvoice'] }]);
 });
@@ -72,8 +79,16 @@ test('whisper.cpp is pinned to a tag and its exact commit', () => {
   assert.match(script, /-DBUILD_SHARED_LIBS=OFF/);
 });
 
+test('llama.cpp is pinned the same way, with network model downloads off', () => {
+  const script = read('scripts/build-llama.sh');
+  assert.match(script, /^LLAMA_VERSION="b\d+"$/m);
+  assert.match(script, /^LLAMA_COMMIT="[0-9a-f]{40}"$/m);
+  assert.match(script, /-DGGML_NATIVE=OFF/);
+  assert.match(script, /-DLLAMA_CURL=OFF/);
+});
+
 test('build and release scripts are executable', () => {
-  for (const script of ['build-whisper.sh', 'build-native.sh', 'package-mac.sh', 'release-mac.sh']) {
+  for (const script of ['build-whisper.sh', 'build-llama.sh', 'build-native.sh', 'package-mac.sh', 'release-mac.sh']) {
     accessSync(path.join(root, 'scripts', script), constants.X_OK);
   }
 });

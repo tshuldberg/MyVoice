@@ -9,17 +9,20 @@ export interface WhisperArgsInput {
   /** Vocabulary hint passed as the initial prompt. */
   prompt: string | null;
   threads: number;
+  /**
+   * Write timed segments as JSON to `<path>.json` (meeting transcripts).
+   * Timestamps stay on in that case, since the segments need them.
+   */
+  jsonOutputBase?: string;
 }
 
 export function buildWhisperArgs(input: WhisperArgsInput): string[] {
-  const args = [
-    '-m', input.modelPath,
-    '--no-timestamps',
-    '-l', input.language,
-    '-t', String(input.threads),
-  ];
+  const args = ['-m', input.modelPath];
+  if (!input.jsonOutputBase) args.push('--no-timestamps');
+  args.push('-l', input.language, '-t', String(input.threads));
   if (input.translate) args.push('--translate');
   if (input.prompt) args.push('--prompt', input.prompt);
+  if (input.jsonOutputBase) args.push('--output-json', '--output-file', input.jsonOutputBase);
   args.push('-f', input.audioPath);
   return args;
 }

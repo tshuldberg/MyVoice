@@ -24,6 +24,10 @@ export interface Preferences {
   pasteLastShortcut: string;
   /** Let other apps and Shortcuts control MyVoice through myvoice:// links. */
   allowUrlControl: boolean;
+  /** Read the front browser tab's site to pick a mode (only when FEATURE_FLAGS.websiteModes is on). */
+  websiteModes: boolean;
+  /** Ask GitHub for a newer release once a day. Off: MyVoice only checks when asked. */
+  autoCheckUpdates: boolean;
   localAi: LocalAiSettings;
 }
 
@@ -41,6 +45,8 @@ export function defaultPreferences(arch: string): Preferences {
     maxRecordingMinutes: 10,
     pasteLastShortcut: '',
     allowUrlControl: false,
+    websiteModes: false,
+    autoCheckUpdates: false,
     localAi: { ...DEFAULT_LOCAL_AI },
   };
 }
@@ -67,6 +73,8 @@ export function normalizePreferences(raw: unknown, arch: string): Preferences {
     maxRecordingMinutes: pick(data.maxRecordingMinutes, MAX_RECORDING_OPTIONS, defaults.maxRecordingMinutes),
     pasteLastShortcut: typeof data.pasteLastShortcut === 'string' ? data.pasteLastShortcut.trim().slice(0, 64) : '',
     allowUrlControl: bool(data.allowUrlControl, defaults.allowUrlControl),
+    websiteModes: bool(data.websiteModes, defaults.websiteModes),
+    autoCheckUpdates: bool(data.autoCheckUpdates, defaults.autoCheckUpdates),
     localAi: normalizeLocalAiSettings(data.localAi),
   };
 }

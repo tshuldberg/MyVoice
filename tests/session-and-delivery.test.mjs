@@ -142,6 +142,8 @@ test('preferences default to safe values and reject bad input', () => {
   assert.equal(defaults.localAi.enabled, false);
   assert.equal(defaults.historyRetentionDays, -1);
   assert.equal(defaults.livePreview, true);
+  assert.equal(defaults.websiteModes, false);
+  assert.equal(defaults.autoCheckUpdates, false);
 
   const cleaned = normalizePreferences({
     triggerStyle: 'shout',
@@ -159,4 +161,11 @@ test('preferences default to safe values and reject bad input', () => {
   assert.equal(cleaned.livePreview, false);
   assert.equal(cleaned.localAi.enabled, true);
   assert.equal(cleaned.localAi.endpoint, 'http://127.0.0.1:11434/v1/chat/completions');
+});
+
+test('meeting transcription keeps timestamps and writes JSON segments', () => {
+  assert.deepEqual(
+    buildWhisperArgs({ modelPath: '/m.bin', audioPath: '/mic.wav', language: 'en', translate: false, prompt: null, threads: 4, jsonOutputBase: '/tmp/mic' }),
+    ['-m', '/m.bin', '-l', 'en', '-t', '4', '--output-json', '--output-file', '/tmp/mic', '-f', '/mic.wav'],
+  );
 });

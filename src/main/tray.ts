@@ -1,4 +1,4 @@
-import { Tray, Menu, nativeImage, app, shell } from 'electron';
+import { Tray, Menu, nativeImage, app, shell, dialog } from 'electron';
 import { getModesState, updateModesState } from './modes-settings';
 import { selectMode } from './modes';
 import {
@@ -17,7 +17,8 @@ import {
 } from './dictation-settings';
 import { loadTrayIcon } from './icon';
 import { checkForUpdates } from './update-checker';
-import { broadcastAppState } from './app-window';
+import { broadcastAppState, showAppWindow } from './app-window';
+import { getMeetingStatus, startMeeting, stopMeeting } from './meeting-recorder';
 
 let tray: Tray | null = null;
 let isRecording = false;
@@ -96,6 +97,7 @@ export function updateTrayMenu(): void {
         trayActions.openFileTranscription?.();
       },
     },
+    meetingMenuItem(),
     {
       label: 'Set Up Permissions…',
       click: () => {
@@ -244,6 +246,35 @@ export function updateTrayMenu(): void {
   ]);
 
   tray.setContextMenu(contextMenu);
+}
+
+function meetingMenuItem(): Electron.MenuItemConstructorOptions {
+  const meeting = getMeetingStatus();
+  if (meeting.stage === 'transcribing') {
+    return { label: `Transcribing Meeting… ${meeting.percent}%`, enabled: false };
+  }
+  if (meeting.stage === 'recording') {
+    return {
+      label: 'Stop Meeting Recording',
+      click: () => {
+        stopMeeting()
+          .then(() => showAppWindow('logs'))
+          .catch((error) => console.error('[MyVoice] Meeting stop failed:', error));
+      },
+    };
+  }
+  return {
+    label: 'Record Meeting',
+    click: () => {
+      startMeeting()
+        .then(async (error) => {
+          if (!error) return;
+          console.error('[MyVoice] Meeting start failed:', error);
+          await dialog.showMessageBox({ type: 'warning', message: 'The meeting recording could not start.', detail: error, buttons: ['OK'] });
+        })
+        .catch((error) => console.error('[MyVoice] Meeting start failed:', error));
+    },
+  };
 }
 
 export function getTray(): Tray | null {

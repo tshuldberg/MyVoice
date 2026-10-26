@@ -49,6 +49,15 @@ for tool in notarytool stapler; do
   if xcrun --find "$tool" >/dev/null 2>&1; then ok "$tool"; else missing "$tool (install the Xcode Command Line Tools: xcode-select --install)"; fi
 done
 
+llama_stamp="resources/bin/llama-server.version"
+if [[ -x resources/bin/llama-server && -f "$llama_stamp" ]]; then
+  ok "llama-server built ($(cat "$llama_stamp"))"
+elif command -v cmake >/dev/null 2>&1; then
+  ok "cmake found; llama-server will be built"
+else
+  missing "cmake, needed to build llama-server (brew install cmake, or pipx install cmake)"
+fi
+
 if [[ -d node_modules/electron && -x node_modules/.bin/electron-builder ]]; then
   ok "npm dependencies"
 else
@@ -112,8 +121,9 @@ work_dir="$out_dir/work"
 rm -rf "$out_dir"
 mkdir -p "$work_dir"
 
-step "Building whisper-cli, native addon and TypeScript"
+step "Building whisper-cli, llama-server, native addon and TypeScript"
 bash scripts/build-whisper.sh
+bash scripts/build-llama.sh
 bash scripts/build-native.sh
 npm run build:ts
 

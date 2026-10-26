@@ -5,6 +5,10 @@
 
 export interface LocalAiSettings {
   enabled: boolean;
+  /** 'server': one the user runs (Ollama, LM Studio). 'built-in': MyVoice's llama-server with `modelFile`. */
+  engine: 'server' | 'built-in';
+  /** A GGUF model file for the built-in engine. */
+  modelFile: string;
   /** An OpenAI-compatible chat completions URL on 127.0.0.1, localhost or ::1. */
   endpoint: string;
   model: string;
@@ -19,6 +23,8 @@ export const DEFAULT_AI_INSTRUCTIONS = 'Clean up this dictated text. Fix punctua
 
 export const DEFAULT_LOCAL_AI: LocalAiSettings = {
   enabled: false,
+  engine: 'server',
+  modelFile: '',
   endpoint: 'http://127.0.0.1:11434/v1/chat/completions',
   model: 'llama3.2:3b',
   instructions: DEFAULT_AI_INSTRUCTIONS,
@@ -48,22 +54,45 @@ export function normalizeLocalAiSettings(raw: unknown): LocalAiSettings {
   const timeoutMs = typeof data.timeoutMs === 'number' && data.timeoutMs >= 1000 && data.timeoutMs <= 60000
     ? Math.round(data.timeoutMs)
     : DEFAULT_LOCAL_AI.timeoutMs;
-  return { enabled: data.enabled === true, endpoint, model, instructions, timeoutMs };
+  return {
+    enabled: data.enabled === true,
+    engine: data.engine === 'built-in' ? 'built-in' : 'server',
+    modelFile: typeof data.modelFile === 'string' ? data.modelFile.trim().slice(0, 4096) : '',
+    endpoint,
+    model,
+    instructions,
+    timeoutMs,
+  };
 }
 
 export interface CleanupContext {
   appName?: string;
   modeName?: string;
+  /** Only sent when screen context is allowed for the mode (FEATURE_FLAGS.aiScreenContext). */
+  windowTitle?: string;
+  selectedText?: string;
 }
 
-export function buildCleanupRequest(settings: LocalAiSettings, text: string, context: CleanupContext = {}): object {
-  const where = context.appName ? ` It will be inserted into ${context.appName}.` : '';
+export const SELECTED_TEXT_LIMIT = 4000;
+
+/**
+ * `modeInstructions` replace the standard cleanup instructions when a mode
+ * has its own ("Write a short, friendly reply to the selected email").
+ */
+export function buildCleanupRequest(settings: LocalAiSettings, text: string, context: CleanupContext = {}, modeInstructions = ''): object {
+  const instructions = modeInstructions.trim() || settings.instructions;
+  const intro = context.appName ? `${instructions} The text will be inserted into ${context.appName}.` : instructions;
+  const sections = [intro];
+  if (context.windowTitle) sections.push(`Window title: ${context.windowTitle}`);
+  if (context.selectedText) {
+    sections.push(`Text the user had selected when they started dictating:\n<selected>\n${context.selectedText.slice(0, SELECTED_TEXT_LIMIT)}\n</selected>`);
+  }
   return {
     model: settings.model,
     temperature: 0.1,
     stream: false,
     messages: [
-      { role: 'system', content: `${settings.instructions}${where}` },
+      { role: 'system', content: sections.join('\n\n') },
       { role: 'user', content: text },
     ],
   };
@@ -82,11 +111,13 @@ export function parseCleanupResponse(body: unknown): string | null {
  * Rejects output that looks like the model did something other than clean up:
  * an answer, a summary or a refusal changes the length a lot.
  */
-export function acceptCleanup(original: string, cleaned: string): boolean {
+export function acceptCleanup(original: string, cleaned: string, guard: 'strict' | 'custom' = 'strict'): boolean {
   const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
   const before = words(original);
   const after = words(cleaned);
   if (after === 0) return false;
+  // Custom instructions may legitimately expand or shorten ("write a reply"), so only runaway output is refused.
+  if (guard === 'custom') return after <= Math.max(60, before * 8);
   if (before <= 3) return after <= before + 3;
   const ratio = after / before;
   return ratio >= 0.5 && ratio <= 1.5;
@@ -97,7 +128,7 @@ export type CleanupOutcome =
   | { status: 'skipped' | 'rejected' | 'failed'; text: string; reason: string };
 
 /** Runs the cleanup; always returns usable text, falling back to the input. */
-export async function runLocalCleanup(settings: LocalAiSettings, text: string, context: CleanupContext = {}): Promise<CleanupOutcome> {
+export async function runLocalCleanup(settings: LocalAiSettings, text: string, context: CleanupContext = {}, modeInstructions = ''): Promise<CleanupOutcome> {
   if (!settings.enabled) return { status: 'skipped', text, reason: 'Local AI cleanup is off.' };
   if (!isLoopbackEndpoint(settings.endpoint)) return { status: 'skipped', text, reason: 'Only servers on this Mac are allowed.' };
 
@@ -105,13 +136,15 @@ export async function runLocalCleanup(settings: LocalAiSettings, text: string, c
     const response = await fetch(settings.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildCleanupRequest(settings, text, context)),
+      body: JSON.stringify(buildCleanupRequest(settings, text, context, modeInstructions)),
       signal: AbortSignal.timeout(settings.timeoutMs),
     });
     if (!response.ok) return { status: 'failed', text, reason: `The model server returned HTTP ${response.status}.` };
     const cleaned = parseCleanupResponse(await response.json());
     if (!cleaned) return { status: 'failed', text, reason: 'The model server sent no text.' };
-    if (!acceptCleanup(text, cleaned)) return { status: 'rejected', text, reason: 'The result changed the text too much.' };
+    if (!acceptCleanup(text, cleaned, modeInstructions.trim() ? 'custom' : 'strict')) {
+      return { status: 'rejected', text, reason: 'The result changed the text too much.' };
+    }
     return { status: 'cleaned', text: cleaned };
   } catch (error) {
     const reason = (error as Error)?.name === 'TimeoutError'

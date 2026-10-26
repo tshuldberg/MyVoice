@@ -15,8 +15,9 @@ tmp_root="${TMPDIR:-/tmp}"
 output_dir="${MYVOICE_RELEASE_OUTPUT:-${tmp_root%/}/myvoice-package}"
 mkdir -p "$output_dir"
 
-echo "[MyVoice] Building whisper-cli, native addon and TypeScript"
+echo "[MyVoice] Building whisper-cli, llama-server, native addon and TypeScript"
 bash scripts/build-whisper.sh
+bash scripts/build-llama.sh
 bash scripts/build-native.sh
 npm run build:ts
 

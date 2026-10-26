@@ -43,8 +43,17 @@
       "from": "resources/bin",
       "to": "bin",
       "filter": [
-        "whisper-cli"
+        "whisper-cli",
+        "llama-server"
       ]
+    },
+    {
+      "from": "cli/myvoice-history.js",
+      "to": "cli/myvoice-history.js"
+    },
+    {
+      "from": "dist/main/history-core.js",
+      "to": "cli/history-core.js"
     }
   ],
   "files": [

@@ -468,6 +468,11 @@
         <label for="audio-device">Microphone</label>
         <select id="audio-device"></select>
         <p id="audio-device-hint" class="hint">Select which microphone to use for dictation.</p>
+        <div class="check-list">
+          <label><input id="avoid-bluetooth" type="checkbox"> <span>Don't use Bluetooth microphones when another one is available
+            <span class="hint" style="display: block;">Recording through AirPods or another headset switches its playback to low-quality call audio.</span>
+          </span></label>
+        </div>
       </div>
 
       <div class="card">
@@ -498,6 +503,16 @@
           </div>
         </div>
         <div class="check-list" style="margin-top: 12px;">
+          <label><input id="auto-updates" type="checkbox">
+            <span>Check for updates automatically once a day
+              <span class="hint" style="display: block;">Asks GitHub for the latest version number. Nothing else is sent. Off: MyVoice only checks when you choose Check for Updates.</span>
+            </span>
+          </label>
+          <label id="website-modes-row" class="hidden"><input id="website-modes" type="checkbox">
+            <span>Switch modes by website in Safari and Chrome-based browsers
+              <span class="hint" style="display: block;">MyVoice reads only the address of the front tab when you start dictating. macOS asks you to allow this once per browser.</span>
+            </span>
+          </label>
           <label><input id="allow-url-control" type="checkbox">
             <span>Allow other apps and Shortcuts to control MyVoice with myvoice:// links
               <span class="hint" style="display: block;">Links: myvoice://start, stop, toggle, cancel, paste-last, mode/&lt;mode&gt;. Off by default, because any web page can open a link.</span>
@@ -513,6 +528,22 @@
           <label><input id="ai-enabled" type="checkbox"> <span>Use my local model server</span></label>
         </div>
         <div class="grid-2" style="margin-top: 12px;">
+          <div>
+            <label for="ai-engine">Engine</label>
+            <select id="ai-engine">
+              <option value="server">A model server I run (Ollama, LM Studio)</option>
+              <option value="built-in">MyVoice's built-in engine with a model file</option>
+            </select>
+          </div>
+          <div id="ai-model-file-row">
+            <p class="field-label">Model file (GGUF)</p>
+            <div class="row">
+              <button id="ai-choose-model" class="btn small" type="button">Choose Model File…</button>
+              <span id="ai-model-file" class="hint"></span>
+            </div>
+          </div>
+        </div>
+        <div id="ai-server-fields" class="grid-2" style="margin-top: 12px;">
           <div>
             <label for="ai-endpoint">Server address (OpenAI-compatible chat completions)</label>
             <input id="ai-endpoint" type="text" spellcheck="false">
@@ -580,6 +611,13 @@
                 <select id="mode-model"></select>
               </div>
               <div>
+                <label for="mode-spelling">Spelling</label>
+                <select id="mode-spelling">
+                  <option value="us">American (color, organize)</option>
+                  <option value="uk">British (colour, organise)</option>
+                </select>
+              </div>
+              <div>
                 <label for="mode-language">Language</label>
                 <select id="mode-language"></select>
                 <p id="mode-language-hint" class="hint"></p>
@@ -592,10 +630,24 @@
                 <label><input id="mode-commands" type="checkbox"> <span>Spoken commands: "new line", "new paragraph", "scratch that"</span></label>
                 <label><input id="mode-punctuation" type="checkbox"> <span>Spoken punctuation: "comma", "period", "question mark", "open quote"</span></label>
                 <label><input id="mode-dictionary" type="checkbox"> <span>Use my dictionary (vocabulary and replacements)</span></label>
+                <label><input id="mode-fuzzy" type="checkbox"> <span>Also fix near-misses of vocabulary words, such as "kubernetties" (experimental)</span></label>
                 <label><input id="mode-translate" type="checkbox"> <span>Translate to English</span></label>
                 <label><input id="mode-ai" type="checkbox"> <span>Polish with my local AI model <span id="mode-ai-hint" class="hint"></span></span></label>
+                <label id="mode-ai-context-row" class="hidden"><input id="mode-ai-context" type="checkbox"> <span>Let the local model see the selected text and window title (for replies and rewrites)</span></label>
                 <label><input id="mode-return" type="checkbox"> <span>Press Return after inserting (sends messages in chat apps)</span></label>
               </div>
+            </div>
+            <div id="mode-ai-instructions-row">
+              <label for="mode-ai-instructions">Local AI instructions for this mode (optional)</label>
+              <textarea id="mode-ai-instructions" rows="3" maxlength="2000" placeholder="Leave empty for the standard cleanup. Example: Turn this into a short, friendly email reply."></textarea>
+            </div>
+            <div id="mode-sites-section" class="hidden">
+              <p class="field-label">Switch to this mode on these websites</p>
+              <div id="mode-sites" class="chips"></div>
+              <form id="mode-site-form" class="shortcut-row" style="margin-top: 8px;">
+                <input id="mode-site-input" type="text" placeholder="Example: mail.google.com" aria-label="Website to add">
+                <button class="btn small" type="submit">Add Website</button>
+              </form>
             </div>
             <div>
               <p class="field-label">Switch to this mode in these apps</p>
@@ -654,6 +706,15 @@
       <div class="card">
         <h2>Your dictation</h2>
         <div id="stats" class="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2>Record a meeting</h2>
+        <p class="hint">Records your microphone and the Mac's own audio, such as a video call, then writes a transcript with "You" and "Others". Use headphones for the cleanest result. macOS asks once to allow Screen &amp; System Audio Recording. Dictation is off while recording.</p>
+        <div class="row">
+          <button id="meeting-toggle" class="btn primary" type="button">Start Recording</button>
+          <span id="meeting-status" class="hint" role="status" aria-live="polite"></span>
+        </div>
       </div>
 
       <div class="card">

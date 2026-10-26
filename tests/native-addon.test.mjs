@@ -23,9 +23,10 @@ test('the addon is universal and exports every bridge function', { skip: !built 
     'hotkeyStart', 'hotkeyStop',
     'keyboardType', 'keyboardPaste', 'keyboardPressReturn',
     'listAudioInputDevices', 'setAudioInputDevice', 'clearAudioInputDevice',
-    'frontmostApplication', 'focusedTextContext',
+    'frontmostApplication', 'focusedTextContext', 'focusedSelectionContext', 'runAppleScript',
     'pasteboardSave', 'pasteboardWriteText', 'pasteboardRestoreIfUnchanged',
     'outputVolume', 'setOutputVolume',
+    'meetingStart', 'meetingStop', 'meetingIsRecording',
   ]) {
     assert.equal(typeof native[name], 'function', name);
   }
@@ -46,10 +47,16 @@ test('read-only system calls return well-formed values', { skip: !built && 'nati
   for (const device of devices) {
     assert.equal(typeof device.uid, 'string');
     assert.equal(typeof device.name, 'string');
+    assert.ok(['built-in', 'bluetooth', 'usb', 'virtual', 'other'].includes(device.transport), device.transport);
+    assert.equal(typeof device.isDefault, 'boolean');
   }
+  assert.ok(devices.filter((device) => device.isDefault).length <= 1);
 
   const volume = native.outputVolume();
   assert.ok(volume === -1 || (volume >= 0 && volume <= 1), `volume ${volume}`);
+
+  assert.equal(native.meetingIsRecording(), false);
+  assert.equal(native.meetingStop(path.join(root, 'never-written.wav')), null);
 
   // Without a recording in progress there is nothing to snapshot.
   assert.equal(native.recordSnapshot(path.join(root, 'never-written.wav'), 30), null);

@@ -1,5 +1,7 @@
 # MyVoice
 
+> **Retired by Trey on October 25, 2026. Do not use, install, build, or deploy.** Source and Git history are retained only as an inactive archive. The final work snapshot is unfinished and is not a supported release.
+
 **Private dictation for Mac that never sends your voice to the cloud.**
 
 Double-tap `fn` (or hold it), speak naturally, and your words appear where your cursor is.
@@ -27,14 +29,36 @@ MyVoice runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp) on your Mac,
 - **Modes that switch by app.** A mode bundles the model, language, formatting, cleanup and how text is inserted. Assign apps to a mode and it switches on by itself: the built-in Verbatim mode keeps exact words in Terminal, iTerm, Ghostty and Warp.
 - **Spoken commands.** "new line", "new paragraph" and "scratch that" in every mode that has them on; optional spoken punctuation ("comma", "question mark", "open quote").
 - **Clean text.** Filler words and stutters are removed, sentences and lists are formatted, and text fits the cursor: a space after a word, lowercase mid-sentence.
-- **Your dictionary.** Vocabulary teaches MyVoice names and jargon and keeps their spelling. Replacements turn "my work email" into your address, and "at sign" or "dot com" into symbols. Import and export as CSV.
+- **Your dictionary.** Vocabulary teaches MyVoice names and jargon and keeps their spelling, and can optionally fix near-misses such as "kubernetties". Replacements turn "my work email" into your address, and "at sign" or "dot com" into symbols. Import and export as CSV.
+- **American or British spelling** per mode.
 - **History you can search.** Every dictation is saved on your Mac with its app, mode and length. Search all days, copy, reformat with another mode, or delete. Retention is up to you, from one day to forever, or no history at all.
 - **Transcribe files.** Drop an audio or video file (WAV, MP3, M4A, FLAC, Ogg, AIFF, MP4, MOV) on History.
+- **Record meetings.** Record your microphone and the Mac's own audio (a video call, for example) and get a transcript with "You" and "Others" turns. Use headphones for the cleanest result; macOS asks once for Screen & System Audio Recording.
 - **Models and languages.** Eight whisper models from Tiny to Large v3 Turbo, English-only or multilingual, with translation to English. Download, switch and delete them in Models.
 - **Delivery options.** Paste (your clipboard, including images, is restored afterward), type character by character for fields that block paste, or copy only. Optionally press Return after inserting, for chat apps.
 - **Paste the last dictation again** from the menu bar or a shortcut.
-- **Optional local AI cleanup.** Point MyVoice at a model server you run yourself (Ollama, LM Studio or llama.cpp's server) to polish text. Only addresses on your own Mac are accepted.
+- **Optional local AI cleanup.** Point MyVoice at a model server you run yourself (Ollama, LM Studio or llama.cpp's server) to polish text, with your own instructions per mode ("turn this into a short email reply"). Only addresses on your own Mac are accepted.
+- **Headphones keep their sound.** Optionally skip Bluetooth microphones, so AirPods do not drop to call-quality audio while you dictate.
 - **Automation.** With "Allow other apps to control MyVoice" on, Shortcuts, Raycast or a script can open `myvoice://start`, `stop`, `toggle`, `cancel`, `paste-last` or `mode/<mode id>`.
+
+### History from the terminal and AI assistants
+
+MyVoice ships a small read-only tool that runs with your own Node.js (18 or later):
+
+```bash
+H="/Applications/MyVoice.app/Contents/Resources/cli/myvoice-history.js"
+node "$H" search budget review      # all words must match, newest first
+node "$H" recent --days 7 --json
+node "$H" stats
+```
+
+It is also an MCP server, so an assistant can search what you dictated. For Claude Code:
+
+```bash
+claude mcp add myvoice-history -- node "/Applications/MyVoice.app/Contents/Resources/cli/myvoice-history.js" mcp
+```
+
+Tools: `search_dictation_history`, `recent_dictations`, `dictation_stats`. Both the tool and the server read local files only.
 
 ---
 
@@ -44,7 +68,7 @@ MyVoice runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp) on your Mac,
 - **No account, no telemetry.**
 - **The network is used only for:**
   - downloading speech models from Hugging Face (the first one at first launch, after you confirm), each checked against its published SHA-256;
-  - "Check for Updates…", which asks GitHub for the latest release, only when you click it;
+  - "Check for Updates…", which asks GitHub for the latest release when you click it (or once a day, if you turn that on);
   - local AI cleanup, if you turn it on, which talks only to a server on your own Mac.
 - **History** is plain text in `~/Library/Application Support/MyVoice/recording-logs`. Turn it off or limit it in Settings > Privacy.
 
@@ -66,7 +90,7 @@ MyVoice runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp) on your Mac,
 
 ## Updates
 
-Choose **Check for Updates…** in the menu bar menu. When a new version is out, download it, quit MyVoice and drag the new copy into Applications. Settings, modes, dictionary and history stay.
+Choose **Check for Updates…** in the menu bar menu, or turn on "Check for updates automatically once a day" in Settings > Privacy (off by default). When a new version is out, download it, quit MyVoice and drag the new copy into Applications. Settings, modes, dictionary and history stay.
 
 ## Requirements
 

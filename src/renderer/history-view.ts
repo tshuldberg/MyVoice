@@ -2,6 +2,8 @@
 // History: stats, file transcription, search across all days, and per-entry actions.
 
 const statsEl = mvElement<HTMLElement>('stats');
+const meetingToggleEl = mvElement<HTMLButtonElement>('meeting-toggle');
+const meetingStatusEl = mvElement<HTMLElement>('meeting-status');
 const dropZoneEl = mvElement<HTMLElement>('drop-zone');
 const fileChooseEl = mvElement<HTMLButtonElement>('file-choose');
 const fileProgressRowEl = mvElement<HTMLElement>('file-progress-row');
@@ -44,6 +46,7 @@ function entryMeta(entry: MvHistoryEntry, showDate: boolean): string {
     ? when.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })];
   if (entry.source === 'file' && entry.fileName) parts.push(`File: ${entry.fileName}`);
+  if (entry.source === 'meeting') parts.push('Meeting');
   if (entry.appName) parts.push(entry.appName);
   if (entry.modeName) parts.push(`${entry.modeName} mode`);
   if (entry.durationMs) parts.push(`${Math.round(entry.durationMs / 1000)} s`);
@@ -129,6 +132,55 @@ function exportVisible(format: 'txt' | 'json'): void {
   }), 'Export failed');
 }
 
+// --- Meetings
+
+let meeting: MvMeetingStatus = { stage: 'idle', startedAt: null, percent: 0 };
+let meetingClock: ReturnType<typeof setInterval> | null = null;
+
+function elapsed(since: number): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function renderMeeting(): void {
+  meetingToggleEl.disabled = meeting.stage === 'transcribing';
+  meetingToggleEl.textContent = meeting.stage === 'recording' ? 'Stop and Transcribe' : 'Start Recording';
+  if (meeting.stage === 'recording' && meeting.startedAt !== null) {
+    meetingStatusEl.textContent = `Recording ${elapsed(meeting.startedAt)}`;
+  } else if (meeting.stage === 'transcribing') {
+    meetingStatusEl.textContent = `Transcribing… ${meeting.percent}%`;
+  }
+  const ticking = meeting.stage === 'recording';
+  if (ticking && !meetingClock) meetingClock = setInterval(renderMeeting, 1000);
+  if (!ticking && meetingClock) {
+    clearInterval(meetingClock);
+    meetingClock = null;
+  }
+}
+
+meetingToggleEl.addEventListener('click', () => mvRun((async () => {
+  if (meeting.stage === 'idle') {
+    meetingStatusEl.textContent = 'Starting…';
+    const result = await mvInvoke<{ ok: boolean; error?: string }>('app:meeting-start');
+    if (!result.ok) meetingStatusEl.textContent = result.error ?? 'The recording could not start.';
+    return;
+  }
+  if (meeting.stage === 'recording') {
+    const result = await mvInvoke<{ ok: boolean; error?: string }>('app:meeting-stop');
+    meetingStatusEl.textContent = result.ok ? 'Done. The transcript is at the top of your history.' : result.error ?? 'Transcription failed.';
+    if (result.ok) {
+      searchEl.value = '';
+      await showDay(mvState?.todayDateKey ?? activeDate);
+    }
+  }
+})(), 'Meeting recording failed'));
+
+mvBridge().on('app:meeting-status', (payload: unknown) => {
+  if (!payload || typeof payload !== 'object') return;
+  meeting = payload as MvMeetingStatus;
+  renderMeeting();
+});
+
 // --- File transcription
 
 function setFileBusy(busy: boolean): void {
@@ -205,6 +257,8 @@ exportJsonEl.addEventListener('click', () => exportVisible('json'));
 let initialized = false;
 mvOnState((state) => {
   renderStats(state);
+  meeting = state.features.meeting;
+  renderMeeting();
   const dates = state.availableLogDates;
   if (dates.length > 0) {
     datePickerEl.min = dates[dates.length - 1];

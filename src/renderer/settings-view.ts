@@ -16,12 +16,21 @@ const livePreviewEl = mvElement<HTMLInputElement>('live-preview');
 const soundsEl = mvElement<HTMLInputElement>('sounds');
 const duckingEl = mvElement<HTMLSelectElement>('ducking');
 const audioDeviceEl = mvElement<HTMLSelectElement>('audio-device');
+const avoidBluetoothEl = mvElement<HTMLInputElement>('avoid-bluetooth');
 const waveformSensitivityEl = mvElement<HTMLSelectElement>('waveform-sensitivity');
 const waveformDebugEl = mvElement<HTMLInputElement>('waveform-debug');
 const retentionEl = mvElement<HTMLSelectElement>('history-retention');
 const clearHistoryEl = mvElement<HTMLButtonElement>('clear-history');
 const allowUrlEl = mvElement<HTMLInputElement>('allow-url-control');
+const autoUpdatesEl = mvElement<HTMLInputElement>('auto-updates');
+const websiteModesRowEl = mvElement<HTMLElement>('website-modes-row');
+const websiteModesEl = mvElement<HTMLInputElement>('website-modes');
 const aiEnabledEl = mvElement<HTMLInputElement>('ai-enabled');
+const aiEngineEl = mvElement<HTMLSelectElement>('ai-engine');
+const aiModelFileRowEl = mvElement<HTMLElement>('ai-model-file-row');
+const aiModelFileEl = mvElement<HTMLElement>('ai-model-file');
+const aiChooseModelEl = mvElement<HTMLButtonElement>('ai-choose-model');
+const aiServerFieldsEl = mvElement<HTMLElement>('ai-server-fields');
 const aiEndpointEl = mvElement<HTMLInputElement>('ai-endpoint');
 const aiModelEl = mvElement<HTMLInputElement>('ai-model');
 const aiInstructionsEl = mvElement<HTMLTextAreaElement>('ai-instructions');
@@ -62,16 +71,29 @@ function render(state: MvAppState): void {
 
   mvFillSelect(audioDeviceEl, [
     { value: '', label: 'System Default' },
-    ...state.audio.availableDevices.map((device) => ({ value: device.uid, label: device.name })),
+    ...state.audio.availableDevices.map((device) => ({
+      value: device.uid,
+      label: device.transport === 'bluetooth' ? `${device.name} (Bluetooth)` : device.name,
+    })),
   ], state.audio.selectedDeviceUID);
+  avoidBluetoothEl.checked = state.audio.avoidBluetooth;
 
   waveformSensitivityEl.value = state.visualization.sensitivity;
   waveformDebugEl.checked = state.visualization.debugOverlay;
 
   mvFillSelect(retentionEl, state.features.options.retentionDays.map((days) => ({ value: String(days), label: retentionLabel(days) })), String(prefs.historyRetentionDays));
   allowUrlEl.checked = prefs.allowUrlControl;
+  autoUpdatesEl.checked = prefs.autoCheckUpdates;
+  websiteModesRowEl.classList.toggle('hidden', !state.features.flags.websiteModes);
+  websiteModesEl.checked = prefs.websiteModes;
 
   aiEnabledEl.checked = prefs.localAi.enabled;
+  aiEngineEl.value = prefs.localAi.engine;
+  const builtIn = prefs.localAi.engine === 'built-in';
+  aiModelFileRowEl.classList.toggle('hidden', !builtIn);
+  aiServerFieldsEl.classList.toggle('hidden', builtIn);
+  aiModelFileEl.textContent = prefs.localAi.modelFile ? prefs.localAi.modelFile.split('/').pop() ?? '' : 'No model chosen yet';
+  aiModelFileEl.title = prefs.localAi.modelFile;
   if (document.activeElement !== aiEndpointEl) aiEndpointEl.value = prefs.localAi.endpoint;
   if (document.activeElement !== aiModelEl) aiModelEl.value = prefs.localAi.model;
   if (document.activeElement !== aiInstructionsEl) aiInstructionsEl.value = prefs.localAi.instructions;
@@ -91,16 +113,21 @@ livePreviewEl.addEventListener('change', () => updatePreferences({ livePreview: 
 soundsEl.addEventListener('change', () => updatePreferences({ sounds: soundsEl.checked }));
 duckingEl.addEventListener('change', () => updatePreferences({ ducking: duckingEl.value as MvPreferences['ducking'] }));
 audioDeviceEl.addEventListener('change', () => mvRun(mvUpdate('app:set-audio-device', audioDeviceEl.value), 'Saving microphone failed'));
+avoidBluetoothEl.addEventListener('change', () => mvRun(mvUpdate('app:set-avoid-bluetooth', avoidBluetoothEl.checked), 'Saving Bluetooth choice failed'));
 waveformSensitivityEl.addEventListener('change', () => mvRun(mvUpdate('app:set-waveform-sensitivity', waveformSensitivityEl.value), 'Saving sensitivity failed'));
 waveformDebugEl.addEventListener('change', () => mvRun(mvUpdate('app:set-waveform-debug', waveformDebugEl.checked), 'Saving debug overlay failed'));
 retentionEl.addEventListener('change', () => updatePreferences({ historyRetentionDays: Number(retentionEl.value) }));
 clearHistoryEl.addEventListener('click', () => mvRun(mvUpdate('app:history-clear'), 'Deleting history failed'));
 allowUrlEl.addEventListener('change', () => updatePreferences({ allowUrlControl: allowUrlEl.checked }));
+autoUpdatesEl.addEventListener('change', () => updatePreferences({ autoCheckUpdates: autoUpdatesEl.checked }));
+websiteModesEl.addEventListener('change', () => updatePreferences({ websiteModes: websiteModesEl.checked }));
 
 function aiPatch(): Partial<MvPreferences> {
   return {
     localAi: {
       enabled: aiEnabledEl.checked,
+      engine: aiEngineEl.value as MvPreferences['localAi']['engine'],
+      modelFile: mvState?.features.preferences.localAi.modelFile ?? '',
       endpoint: aiEndpointEl.value.trim(),
       model: aiModelEl.value.trim(),
       instructions: aiInstructionsEl.value.trim(),
@@ -110,6 +137,8 @@ function aiPatch(): Partial<MvPreferences> {
 }
 
 aiEnabledEl.addEventListener('change', () => updatePreferences(aiPatch()));
+aiEngineEl.addEventListener('change', () => updatePreferences(aiPatch()));
+aiChooseModelEl.addEventListener('click', () => mvRun(mvUpdate('app:ai-choose-model'), 'Choosing model failed'));
 aiSaveEl.addEventListener('click', () => mvRun((async () => {
   await mvUpdate('app:preferences-update', aiPatch());
   const saved = mvState?.features.preferences.localAi.endpoint;

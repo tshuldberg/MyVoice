@@ -18,12 +18,14 @@ export interface HistoryEntry {
   modeName?: string;
   appName?: string;
   appBundleId?: string;
+  /** Site in the front browser tab, when website modes picked the mode. */
+  site?: string;
   modelId?: string;
   /** Length of the recording. */
   durationMs?: number;
   /** Time from stop to text. */
   transcribeMs?: number;
-  source?: 'dictation' | 'file';
+  source?: 'dictation' | 'file' | 'meeting';
   fileName?: string;
 }
 
@@ -65,10 +67,11 @@ export function parseHistoryLines(content: string): HistoryEntry[] {
         modeName: optionalString(data.modeName),
         appName: optionalString(data.appName),
         appBundleId: optionalString(data.appBundleId),
+        site: optionalString(data.site),
         modelId: optionalString(data.modelId),
         durationMs: optionalNumber(data.durationMs),
         transcribeMs: optionalNumber(data.transcribeMs),
-        source: data.source === 'file' ? 'file' : data.source === 'dictation' ? 'dictation' : undefined,
+        source: data.source === 'file' || data.source === 'meeting' || data.source === 'dictation' ? data.source : undefined,
         fileName: optionalString(data.fileName),
       };
       // Leave absent fields out rather than present-but-undefined.
@@ -135,7 +138,7 @@ export function searchHistory(directory: string, query: string, limit = 200): Hi
   for (const dateKey of listHistoryDates(directory)) {
     const day = readHistoryDay(directory, dateKey).reverse();
     for (const entry of day) {
-      const haystack = [entry.transcript, entry.raw, entry.appName, entry.modeName, entry.fileName]
+      const haystack = [entry.transcript, entry.raw, entry.appName, entry.site, entry.modeName, entry.fileName]
         .filter(Boolean).join('\n').toLowerCase();
       if (terms.every((term) => haystack.includes(term))) {
         results.push(entry);
@@ -206,7 +209,7 @@ export function computeHistoryStats(entries: HistoryEntry[], typingWpm = 40): Hi
   for (const entry of entries) {
     const count = countWords(entry.transcript);
     words += count;
-    if (entry.durationMs && entry.source !== 'file') {
+    if (entry.durationMs && (entry.source === undefined || entry.source === 'dictation')) {
       timedWords += count;
       speakingMs += entry.durationMs;
     }

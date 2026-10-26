@@ -1,6 +1,8 @@
 import { formatTranscript, type FormattingMode } from './transcript-formatter';
 import { applyReplacements, applyVocabularyCasing, type Dictionary } from './dictionary';
 import { applyScratchThat, applySpokenPunctuation, joinSegments, splitOnLineBreakCommands } from './spoken-commands';
+import { applyFuzzyVocabulary } from './phonetic';
+import { applySpelling, type SpellingVariant } from './spelling';
 
 // Turns whisper's raw text into what gets inserted. Pure, so every step is unit tested.
 
@@ -14,6 +16,10 @@ export interface PipelineOptions {
   spokenPunctuation: boolean;
   /** Apply replacement rules and vocabulary spelling. */
   useDictionary: boolean;
+  /** Also fix near-misses of vocabulary words ("kubernetties"). Off by default. */
+  fuzzyVocabulary: boolean;
+  /** American (whisper's default) or British spelling. */
+  spelling: SpellingVariant;
 }
 
 export const DEFAULT_PIPELINE_OPTIONS: PipelineOptions = {
@@ -22,6 +28,8 @@ export const DEFAULT_PIPELINE_OPTIONS: PipelineOptions = {
   spokenCommands: true,
   spokenPunctuation: false,
   useDictionary: true,
+  fuzzyVocabulary: false,
+  spelling: 'us',
 };
 
 // um, umm, uh, uhm, erm, hm, hmm, mm. "er" and "ah" are left alone: too often real words.
@@ -61,8 +69,12 @@ export function processTranscript(raw: string, options: PipelineOptions, diction
     text: formatTranscript(segment.text, options.formatting),
   })));
 
+  // Before the dictionary, so a replacement can still override a spelling.
+  text = applySpelling(text, options.spelling);
+
   if (options.useDictionary) {
     text = applyReplacements(text, dictionary.replacements);
+    if (options.fuzzyVocabulary) text = applyFuzzyVocabulary(text, dictionary.vocabulary);
     text = applyVocabularyCasing(text, dictionary.vocabulary);
   }
 

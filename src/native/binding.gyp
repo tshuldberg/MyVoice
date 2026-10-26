@@ -7,7 +7,8 @@
         "Sources/SpeechBridgeImpl.m",
         "Sources/HotkeyBridgeImpl.m",
         "Sources/KeyboardBridgeImpl.m",
-        "Sources/SystemBridgeImpl.m"
+        "Sources/SystemBridgeImpl.m",
+        "Sources/MeetingBridgeImpl.m"
       ],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
@@ -23,7 +24,9 @@
         "-framework CoreGraphics",
         "-framework ApplicationServices",
         "-framework CoreAudio",
-        "-framework AudioToolbox"
+        "-framework AudioToolbox",
+        "-framework ScreenCaptureKit",
+        "-framework CoreMedia"
       ],
       "xcode_settings": {
         "CLANG_ENABLE_OBJC_ARC": "YES",

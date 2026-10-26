@@ -12,11 +12,13 @@ export function speechIsAvailable(): boolean {
 
 // --- Audio Recording (for Whisper) ----------------------------------------
 
+/** `lowSampleRate` keeps about 16 kHz instead of the hardware rate, for long meeting recordings. */
 export function recordStart(
   onAudioLevel: (level: number) => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  lowSampleRate = false,
 ): void {
-  native.recordStart(onAudioLevel, onError);
+  native.recordStart(onAudioLevel, onError, lowSampleRate);
 }
 
 /** Stops recording and returns the path to the WAV file, or null if no audio. */
@@ -38,6 +40,9 @@ export function speechStop(): void {
 export interface AudioInputDevice {
   uid: string;
   name: string;
+  transport: 'built-in' | 'bluetooth' | 'usb' | 'virtual' | 'other';
+  /** The macOS default input right now. */
+  isDefault: boolean;
 }
 
 export function listAudioInputDevices(): AudioInputDevice[] {
@@ -79,6 +84,22 @@ export function keyboardPressReturn(): void {
   native.keyboardPressReturn();
 }
 
+// --- Meeting: system audio -------------------------------------------------------
+
+/** Starts recording the Mac's own audio; resolves with an error message or null. */
+export function meetingStart(): Promise<string | null> {
+  return new Promise((resolve) => native.meetingStart((error: string | null) => resolve(error)));
+}
+
+/** Stops the system-audio recording and writes it to `path`; null when nothing was captured. */
+export function meetingStop(path: string): string | null {
+  return native.meetingStop(path);
+}
+
+export function meetingIsRecording(): boolean {
+  return native.meetingIsRecording();
+}
+
 // --- System -------------------------------------------------------------------
 
 export interface FrontmostApp {
@@ -102,6 +123,22 @@ export interface FocusedTextContext {
 
 export function focusedTextContext(): FocusedTextContext | null {
   return native.focusedTextContext();
+}
+
+export interface FocusedSelection {
+  windowTitle: string;
+  /** Up to 4,000 characters; empty for password fields. */
+  selectedText: string;
+}
+
+/** Only used when the AI screen context is allowed for the mode. */
+export function focusedSelectionContext(): FocusedSelection | null {
+  return native.focusedSelectionContext();
+}
+
+/** Runs one of the fixed browser scripts in website-context.ts; null on failure or without permission. */
+export function runAppleScript(source: string): string | null {
+  return native.runAppleScript(source);
 }
 
 /** Saves every pasteboard item and type; returns the pasteboard change count. */

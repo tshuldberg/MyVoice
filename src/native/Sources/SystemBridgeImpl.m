@@ -78,6 +78,74 @@ static NSArray<NSDictionary<NSString *, NSData *> *> *savedPasteboardItems;
     return result;
 }
 
+// The selected text and the focused window's title, for the optional AI
+// screen context. Nothing is read from secure (password) fields.
++ (NSDictionary *)focusedSelectionContext {
+    NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (!front) return nil;
+
+    NSString *windowTitle = @"";
+    AXUIElementRef appElement = AXUIElementCreateApplication(front.processIdentifier);
+    if (appElement) {
+        AXUIElementSetMessagingTimeout(appElement, 0.1f);
+        AXUIElementRef window = NULL;
+        if (AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute, (CFTypeRef *)&window) == kAXErrorSuccess && window) {
+            CFTypeRef title = NULL;
+            if (AXUIElementCopyAttributeValue(window, kAXTitleAttribute, &title) == kAXErrorSuccess && title) {
+                if (CFGetTypeID(title) == CFStringGetTypeID()) windowTitle = [(__bridge NSString *)title copy];
+                CFRelease(title);
+            }
+            CFRelease(window);
+        }
+        CFRelease(appElement);
+    }
+
+    NSString *selectedText = @"";
+    AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+    if (systemWide) {
+        AXUIElementSetMessagingTimeout(systemWide, 0.1f);
+        AXUIElementRef focused = NULL;
+        if (AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute, (CFTypeRef *)&focused) == kAXErrorSuccess && focused) {
+            BOOL secure = NO;
+            CFTypeRef subrole = NULL;
+            if (AXUIElementCopyAttributeValue(focused, kAXSubroleAttribute, &subrole) == kAXErrorSuccess && subrole) {
+                secure = CFGetTypeID(subrole) == CFStringGetTypeID()
+                    && CFStringCompare((CFStringRef)subrole, kAXSecureTextFieldSubrole, 0) == kCFCompareEqualTo;
+                CFRelease(subrole);
+            }
+            CFTypeRef selection = NULL;
+            if (!secure && AXUIElementCopyAttributeValue(focused, kAXSelectedTextAttribute, &selection) == kAXErrorSuccess && selection) {
+                if (CFGetTypeID(selection) == CFStringGetTypeID()) {
+                    NSString *text = (__bridge NSString *)selection;
+                    selectedText = text.length > 4000 ? [text substringToIndex:4000] : [text copy];
+                }
+                CFRelease(selection);
+            }
+            CFRelease(focused);
+        }
+        CFRelease(systemWide);
+    }
+
+    return @{ @"windowTitle": windowTitle, @"selectedText": selectedText };
+}
+
+// --- AppleScript -----------------------------------------------------------------
+
+// Runs one of the fixed scripts in src/main/website-context.ts (never user
+// input) and returns its string result, or nil. Needs the Apple Events
+// entitlement and the user's Automation permission for the target browser.
++ (NSString *)runAppleScript:(NSString *)source {
+    NSString *wrapped = [NSString stringWithFormat:@"with timeout of 1 seconds\n%@\nend timeout", source];
+    NSAppleScript *script = [[NSAppleScript alloc] initWithSource:wrapped];
+    NSDictionary *error = nil;
+    NSAppleEventDescriptor *result = [script executeAndReturnError:&error];
+    if (error || !result) {
+        NSLog(@"[MyVoice] AppleScript failed: %@", error[NSAppleScriptErrorBriefMessage] ?: @"unknown error");
+        return nil;
+    }
+    return result.stringValue;
+}
+
 // --- Pasteboard ----------------------------------------------------------------
 
 + (NSInteger)pasteboardSave {

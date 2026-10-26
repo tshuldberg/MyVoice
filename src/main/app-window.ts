@@ -15,7 +15,7 @@ import {
 import { listRecordingLogDates, readRecordingLogByDate, readTodayRecordingLog, getTodayDateKey, type RecordingLogEntry } from './recording-log';
 import { getHotkeySettings, setTriggerShortcut } from './hotkey-settings';
 import { applyTriggerShortcut, getTriggerShortcutStatus } from './trigger-shortcut';
-import { getAudioSettings, setSelectedDeviceUID } from './audio-settings';
+import { getAudioSettings, setAvoidBluetooth, setSelectedDeviceUID } from './audio-settings';
 import * as native from './native-bridge';
 import { getPermissionSnapshot, requestAccessibility, requestMicrophone } from './permissions';
 import type { PermissionSnapshot } from './permission-state';
@@ -34,7 +34,8 @@ export interface AppStatePayload {
   };
   audio: {
     selectedDeviceUID: string;
-    availableDevices: { uid: string; name: string }[];
+    avoidBluetooth: boolean;
+    availableDevices: { uid: string; name: string; transport: string }[];
   };
   todayLog: ReturnType<typeof readTodayRecordingLog>;
   todayDateKey: string;
@@ -62,6 +63,7 @@ const IPC_CHANNELS = {
   APP_SET_WAVEFORM_DEBUG: 'app:set-waveform-debug',
   APP_SET_TRIGGER_SHORTCUT: 'app:set-trigger-shortcut',
   APP_SET_AUDIO_DEVICE: 'app:set-audio-device',
+  APP_SET_AVOID_BLUETOOTH: 'app:set-avoid-bluetooth',
   APP_GET_TODAY_LOG: 'app:get-today-log',
   APP_GET_LOG_BY_DATE: 'app:get-log-by-date',
   APP_LIST_LOG_DATES: 'app:list-log-dates',
@@ -97,6 +99,7 @@ function getAppState(): AppStatePayload {
     },
     audio: {
       selectedDeviceUID: getAudioSettings().selectedDeviceUID,
+      avoidBluetooth: getAudioSettings().avoidBluetooth,
       availableDevices: native.listAudioInputDevices(),
     },
     todayLog: readTodayRecordingLog(),
@@ -193,6 +196,11 @@ function registerHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.APP_REQUEST_ACCESSIBILITY, () => requestAccessibility());
   ipcMain.handle(IPC_CHANNELS.APP_COMPLETE_SETUP, () => {
     setSetupCompleted(true);
+    return getAppState();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APP_SET_AVOID_BLUETOOTH, (_event, avoid: boolean) => {
+    setAvoidBluetooth(avoid === true);
     return getAppState();
   });
 

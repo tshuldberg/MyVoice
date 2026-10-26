@@ -16,14 +16,17 @@ interface MvMode {
   id: string;
   name: string;
   builtIn: boolean;
-  pipeline: { formatting: MvFormatting; removeFillers: boolean; spokenCommands: boolean; spokenPunctuation: boolean; useDictionary: boolean };
+  pipeline: { formatting: MvFormatting; removeFillers: boolean; spokenCommands: boolean; spokenPunctuation: boolean; useDictionary: boolean; fuzzyVocabulary: boolean; spelling: 'us' | 'uk' };
   modelId: string;
   language: string;
   translateToEnglish: boolean;
   insertion: 'paste' | 'type' | 'copy';
   pressReturn: boolean;
   apps: MvAppRef[];
+  domains: string[];
   aiCleanup: boolean;
+  aiInstructions: string;
+  aiContext: boolean;
 }
 
 interface MvHistoryEntry {
@@ -38,9 +41,11 @@ interface MvHistoryEntry {
   modelId?: string;
   durationMs?: number;
   transcribeMs?: number;
-  source?: 'dictation' | 'file';
+  source?: 'dictation' | 'file' | 'meeting';
   fileName?: string;
 }
+
+interface MvMeetingStatus { stage: 'idle' | 'recording' | 'transcribing'; startedAt: number | null; percent: number }
 
 interface MvStats { dictations: number; words: number; wordsPerMinute: number | null; minutesSaved: number }
 
@@ -58,14 +63,16 @@ interface MvPreferences {
   maxRecordingMinutes: number;
   pasteLastShortcut: string;
   allowUrlControl: boolean;
-  localAi: { enabled: boolean; endpoint: string; model: string; instructions: string; timeoutMs: number };
+  websiteModes: boolean;
+  autoCheckUpdates: boolean;
+  localAi: { enabled: boolean; engine: 'server' | 'built-in'; modelFile: string; endpoint: string; model: string; instructions: string; timeoutMs: number };
 }
 
 interface MvAppState {
   dictation: { autoStopPauseMs: number };
   visualization: { sensitivity: 'low' | 'balanced' | 'high'; debugOverlay: boolean };
   hotkey: { triggerShortcut: string; activeShortcut: string | null; error: string | null };
-  audio: { selectedDeviceUID: string; availableDevices: { uid: string; name: string }[] };
+  audio: { selectedDeviceUID: string; avoidBluetooth: boolean; availableDevices: { uid: string; name: string; transport: string }[] };
   todayLog: MvHistoryEntry[];
   todayDateKey: string;
   availableLogDates: string[];
@@ -80,6 +87,8 @@ interface MvAppState {
     preferences: MvPreferences;
     stats: { week: MvStats; allTime: MvStats };
     recentApps: MvAppRef[];
+    flags: { websiteModes: boolean; aiScreenContext: boolean };
+    meeting: MvMeetingStatus;
     options: { retentionDays: number[]; maxRecordingMinutes: number[]; audioExtensions: string[] };
   };
 }
